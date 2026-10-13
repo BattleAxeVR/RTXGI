@@ -40,7 +40,7 @@ The decision to terminate the path early into the cache is informed by a path sp
 
 
 ## Distribution
-The NRC library is a binary distribution. The content resides in [libraries/nrc][NRCPackage] and accounts for binaries per API and target architecture (`x64`, `arm64`), shader includes, and headers.
+The NRC library is a binary distribution. The content resides in [Libraries/Nrc][NRCPackage] and accounts for binaries per API and target architecture (`x64`, `arm64`), shader includes, and headers.
 
 |Directory                 |Files                                                    |
 |--------------------------|---------------------------------------------------------|
@@ -77,7 +77,7 @@ At this stage, the application will include the headers inside the provided **/i
 
 > 💡 **Optional integration class.** 
 > 
-> *The application can invoke the public NRC functions in-place, where they are required, or can opt for the creation of an integration class to encapsulate the functionality (as seen in [samples/pathtracer/NrcIntegration.h][SampleNrcIntegh]). The latter approach is used in the pathtracer example for ease of readability and demonstration of the library's functionality for D3D12 and Vulkan; **it is not enforced as a best-practice**.*
+> *The application can invoke the public NRC functions in-place, where they are required, or can opt for the creation of an integration class to encapsulate the functionality (as seen in [Samples/Pathtracer/Nrc/NrcIntegration.h][SampleNrcIntegh]). The latter approach is used in the pathtracer example for ease of readability and demonstration of the library's functionality for D3D12 and Vulkan; **it is not enforced as a best-practice**.*
 
 
 ## Step 2. Initialization and memory management mode selection
@@ -366,17 +366,17 @@ The Structured Memory Configuration feature in Nsight comes in handy for inspect
     <em><small>Table 1. Expected values at frame dimensions 1920 x 1080, with a training resolution of 274 x 154, maximum path length of eight bounces, one SPP.</small></em>
 </p>
 
-[NrcPackage]: ../libraries/nrc
-[NrcIntegration]: ../samples/pathtracer/NrcIntegration.h
+[NrcPackage]: ../Libraries/Nrc
+[NrcIntegration]: ../Samples/Pathtracer/Nrc/NrcIntegration.h
 [SiggraphPaper]: https://research.nvidia.com/publication/2021-06_real-time-neural-radiance-caching-path-tracing
 [GTC1]: https://www.nvidia.com/en-us/on-demand/session/gtcspring21-e31307/
 [GTC2]: https://www.nvidia.com/en-us/on-demand/session/gtcspring23-s51967/
-[nrcbin]: ../libraries/nrc/bin
-[nrcinc]: ../libraries/nrc/include
-[nrclib]: ../libraries/nrc/lib
+[nrcbin]: ../Libraries/Nrc/Bin
+[nrcinc]: ../Libraries/Nrc/Include
+[nrclib]: ../Libraries/Nrc/Lib
 [DocsMemoryLayout]: https://github.com/Microsoft/DirectXShaderCompiler/blob/main/docs/SPIR-V.rst#memory-layout-rules
-[SampleNrcIntegh]: ../samples/pathtracer/NrcIntegration.h
-[SampleNrcIntegc]: ../samples/pathtracer/NrcIntegration.cpp
+[SampleNrcIntegh]: ../Samples/Pathtracer/Nrc/NrcIntegration.h
+[SampleNrcIntegc]: ../Samples/Pathtracer/Nrc/NrcIntegration.cpp
 [NrcPathtracing]: Figures/nrc_intropath.png
 [NrcTermination]: Figures/nrc_introtermination.svg
 [NrcIntegWorkflow]: Figures/nrc_integworkflow.svg

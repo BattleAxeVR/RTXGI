@@ -5,8 +5,8 @@ SHaRC algorithm integration doesn't require substantial modifications to the exi
 <table>
   <tr>
     <td align="center">
-      <img src="figures/sharc_sample_normal.jpg" alt="Normal" width="49%"/>
-      <img src="figures/sharc_sample_sharc.jpg" alt="SHaRC" width="49%"/><br>
+      <img src="Figures/sharc_sample_normal.jpg" alt="Normal" width="49%"/>
+      <img src="Figures/sharc_sample_sharc.jpg" alt="SHaRC" width="49%"/><br>
       <em>Image 1. Path traced output at 1 path per pixel (left) and with SHaRC cache usage (right)</em>
     </td>
   </tr>
@@ -50,8 +50,8 @@ float3 color = HashGridDebugColoredHash(positionWorld, gridParameters);
 <table>
   <tr>
     <td align="center">
-      <img src="figures/sharc_00_normal.jpg" alt="Normal" width="49%"/>
-      <img src="figures/sharc_00_debug.jpg" alt="Debug" width="49%"/><br>
+      <img src="Figures/sharc_00_normal.jpg" alt="Normal" width="49%"/>
+      <img src="Figures/sharc_00_debug.jpg" alt="Debug" width="49%"/><br>
       <em>Image 2. SHaRC hash grid visualization</em>
     </td>
   </tr>
@@ -110,7 +110,7 @@ Positions should vary between frames to ensure full-screen coverage over time.
 <table>
   <tr>
     <td align="center">
-      <img src="figures/sharc_update.svg" alt="SHaRC Update loop" width="40%"/><br>
+      <img src="Figures/sharc_update.svg" alt="SHaRC Update loop" width="40%"/><br>
       <em>Figure 1. Path tracer loop during SHaRC Update pass</em>
     </td>
   </tr>
@@ -134,7 +134,7 @@ During rendering with SHaRC cache usage we should try obtaining cached data usin
 <table>
   <tr>
     <td align="center">
-      <img src="figures/sharc_render.svg" alt="SHaRC Render loop" width="40%"/><br>
+      <img src="Figures/sharc_render.svg" alt="SHaRC Render loop" width="40%"/><br>
       <em>Figure 2. Path tracer loop during SHaRC Render pass</em>
     </td>
   </tr>
@@ -181,8 +181,8 @@ During rendering, adding a debug heatmap of bounce count can help evaluate cache
 <table>
   <tr>
     <td align="center">
-      <img src="figures/sharc_01_cache_off.jpg" alt="SHaRC off" width="49%"/>
-      <img src="figures/sharc_01_cache_on.jpg" alt="SHaRC on" width="49%"/><br>
+      <img src="Figures/sharc_01_cache_off.jpg" alt="SHaRC off" width="49%"/>
+      <img src="Figures/sharc_01_cache_on.jpg" alt="SHaRC on" width="49%"/><br>
       <em>
         Image 3. Tracing depth heatmap with SHaRC off (left) and SHaRC on (right)<br>
         (green = 1 indirect bounce, red = 2+ indirect bounces)
@@ -198,7 +198,7 @@ During rendering, adding a debug heatmap of bounce count can help evaluate cache
 <table>
   <tr>
     <td align="center">
-      <img src="figures/sharc_sample_occupancy.jpg" alt="Cache occupancy debug" width="49%"/><br>
+      <img src="Figures/sharc_sample_occupancy.jpg" alt="Cache occupancy debug" width="49%"/><br>
       <em>
         Image 4. Debug overlay to visualize cache occupancy through <code>HashGridDebugOccupancy()</code>
       </em>

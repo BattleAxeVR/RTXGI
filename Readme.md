@@ -53,7 +53,7 @@ Use the following BibTex entry to cite the usage of RTXGI in published research:
 ```
 
 ## License
-See [LICENSE.md][SDKLicense] for the SDK and [NVIDIA_Sans EULA][FontLicense] for the font. 
+See [License.md][SDKLicense] for the SDK and [NVIDIA_Sans EULA][FontLicense] for the font. 
 
 ## RTXGI v1.x
 Version v1.x of RTXGI which includes the DDGI algorithm is located at https://github.com/NVIDIAGameWorks/RTXGI-DDGI.
@@ -73,5 +73,5 @@ Version v1.x of RTXGI which includes the DDGI algorithm is located at https://gi
 [LFS]: https://git-lfs.com/
 [VKSDK]: https://vulkan.lunarg.com/sdk/home#windows
 [VS22]: https://visualstudio.microsoft.com/vs/
-[SDKLicense]: LICENSE.md
+[SDKLicense]: License.md
 [FontLicense]: Assets/Media/Fonts/NVIDIASans/NVIDIA_Sans_EULA_20220602_FINAL.pdf

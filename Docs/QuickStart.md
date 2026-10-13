@@ -34,5 +34,5 @@ This showcases a trivial path tracer that relies on either NRC or SHaRC to termi
 **Tone mapping.** Post processing section that currently only accounts for tone mapping - useful for clamping radiance values.
 
 [NrcGuide]: NrcGuide.md
-[SharcGuide]: docs/SharcGuide.md
-[Prereq]: ../README.md/#prerequisites
+[SharcGuide]: SharcGuide.md
+[Prereq]: ../Readme.md#prerequisites
