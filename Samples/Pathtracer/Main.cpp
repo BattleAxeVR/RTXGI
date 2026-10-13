@@ -12,12 +12,11 @@
 #include <donut/core/log.h>
 #include <donut/render/DLSS.h>
 
-#include "AppUtils.h"
 #include "Pathtracer.h"
-#include "PathtracerUi.h"
+#include "UI.h"
 
 #if ENABLE_NRC
-#include "NrcUtils.h"
+#include "Nrc/NrcUtils.h"
 #ifdef NRC_WITH_VULKAN
 #include <NrcVk.h>
 #endif // NRC_WITH_VULKAN
@@ -29,6 +28,30 @@ using namespace donut::app;
 
 const char* g_WindowTitle = "Pathtracer";
 
+namespace
+{
+void InjectFeatures(VkDeviceCreateInfo& info)
+{
+    static VkPhysicalDeviceFeatures2 deviceFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+    VkPhysicalDeviceVulkan12Features* features12 = (VkPhysicalDeviceVulkan12Features*)info.pNext;
+
+    assert((VkStructureType)features12->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES);
+    {
+        features12->shaderBufferInt64Atomics = true;
+        features12->shaderSharedInt64Atomics = true;
+        features12->scalarBlockLayout = true;
+    }
+
+    deviceFeatures.features = *info.pEnabledFeatures;
+    deviceFeatures.features.shaderInt64 = true;
+    deviceFeatures.features.fragmentStoresAndAtomics = true;
+
+    info.pEnabledFeatures = nullptr;
+    deviceFeatures.pNext = (void*)info.pNext;
+    info.pNext = &deviceFeatures;
+}
+} // namespace
+
 #ifdef WIN32
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 #else
@@ -39,6 +62,7 @@ int main(int __argc, const char** __argv)
     DeviceManager* deviceManager = DeviceManager::Create(api);
 
     bool disableNrc = false;
+    bool disableDebugRuntime = false;
     DeviceCreationParameters deviceParams;
     deviceParams.enableRayTracingExtensions = true;
     deviceParams.startFullscreen = false;
@@ -54,6 +78,8 @@ int main(int __argc, const char** __argv)
             deviceParams.startFullscreen = true;
         else if (!strcmp(arg, "-disablenrc"))
             disableNrc = true;
+        else if (!strcmp(arg, "-nodebug"))
+            disableDebugRuntime = true;
         else if (!strcmp(arg, "-width"))
             deviceParams.backBufferWidth = atoi(__argv[n + 1]);
         else if (!strcmp(arg, "-height"))
@@ -61,8 +87,10 @@ int main(int __argc, const char** __argv)
     }
 
 #ifdef _DEBUG
-    deviceParams.enableDebugRuntime = true;
-    deviceParams.enableNvrhiValidationLayer = true;
+    // The debug runtime requires the "Graphics Tools" optional Windows feature; -nodebug allows
+    // running a Debug build on machines where it is not installed.
+    deviceParams.enableDebugRuntime = !disableDebugRuntime;
+    deviceParams.enableNvrhiValidationLayer = !disableDebugRuntime;
 #endif
 
     if (api == nvrhi::GraphicsAPI::VULKAN)
@@ -114,9 +142,9 @@ int main(int __argc, const char** __argv)
     {
         UIData uiData;
         Pathtracer demo(deviceManager, uiData, api);
-        if (demo.Init(__argc, __argv))
+        if (demo.Initialize(__argc, __argv))
         {
-            PathtracerUI gui(deviceManager, demo, uiData);
+            UI gui(deviceManager, demo, uiData);
             gui.Init(demo.GetShaderFactory());
 
             deviceManager->AddRenderPassToBack(&demo);

@@ -1,10 +1,8 @@
 # RTXGI
-![banner](Docs/figures/banner.png)
+![banner](Docs/Figures/banner.png)
 <br />
 <div align="center">
     · 
-    <a href="Changelog.md">Change Log</a>
-    ·
     <a href="Docs/QuickStart.md">Quick Start</a>
     ·
     <a href="Docs/NrcGuide.md">NRC Guide</a>
@@ -22,20 +20,18 @@ RTXGI SDK provides an example integration (DX12 and Vulkan) of two state-of-the-
 
 
 ## Project structure
-|Directory                   |Details                                      |
-|----------------------------|---------------------------------------------|
-|[/Docs][Docs]               |_Documentation for showcased tech_           |
-|[/External][External]       |_Helper dependencies for the samples_        |
-|[/Assets][Assets]           |_Assets and scene definitions_               |
-|[/Samples][Samples]         |_Samples showcasing usage of NRC, SHaRC_     |
-|[/Libraries][Libraries]     |_Binaries, src, includes for NRC, SHaRC_     |
-
+|Directory                |Details                                      |
+|-------------------------|---------------------------------------------|
+|[/Assets][Assets]        |_Media, scene definitions_                   |
+|[/Docs][Docs]            |_Documentation for showcased tech_           |
+|[/External][External]    |_Helper dependencies for the samples_        |
+|[/Libraries][Libraries]  |_Binaries, src, includes for NRC, SHaRC_     |
+|[/Samples][Samples]      |_Samples showcasing usage of NRC, SHaRC_     |
 
 ## Getting up and running
 
 ### Prerequisites
-Any DXR GPU for SHaRC **|** NV GPUs ≥ Turing (arch 70) for NRC **|** [CMake v3.24.3][CMake] **|** [Git LFS][LFS] **|** [Vulkan SDK 1.3.268.0][VKSDK] **|** [VS 2022][VS22] **|** Windows SDK ≥ 10.0.20348.0 **|** Driver ≥ 555.85
-
+Any DXR GPU for SHaRC **|** NV GPUs ≥ Turing (arch 70) for NRC **|** [CMake v3.24.3][CMake] **|** [Git LFS][LFS] **|** [Vulkan SDK 1.3.268.0][VKSDK] **|** [VS 2022][VS22] **|** Windows SDK ≥ 10.0.20348.0 **|** Driver ≥  617.42
 ### Further steps
 - [Quick start guide][QuickStart] for building and running the pathtracer example.
 - [NRC integration guide][NrcGuide] and the [SHaRC integration guide][SharcGuide] respectively.
@@ -57,7 +53,7 @@ Use the following BibTex entry to cite the usage of RTXGI in published research:
 ```
 
 ## License
-See [LICENSE.md](LICENSE.md)
+See [LICENSE.md][SDKLicense] for the SDK and [NVIDIA_Sans EULA][FontLicense] for the font. 
 
 ## RTXGI v1.x
 Version v1.x of RTXGI which includes the DDGI algorithm is located at https://github.com/NVIDIAGameWorks/RTXGI-DDGI.
@@ -68,12 +64,14 @@ Version v1.x of RTXGI which includes the DDGI algorithm is located at https://gi
 [SharcGuide]: Docs/SharcGuide.md
 [NrcGuide]: Docs/NrcGuide.md
 [ProjectStructure]: #project-structure
+[Assets]: Assets
 [Docs]: Docs
 [External]: External
-[Assets]: Assets
-[Samples]: Samples/Pathtracer
 [Libraries]: Libraries
+[Samples]: Samples/Pathtracer
 [CMake]: https://cmake.org/download/
 [LFS]: https://git-lfs.com/
 [VKSDK]: https://vulkan.lunarg.com/sdk/home#windows
 [VS22]: https://visualstudio.microsoft.com/vs/
+[SDKLicense]: LICENSE.md
+[FontLicense]: Assets/Media/Fonts/NVIDIASans/NVIDIA_Sans_EULA_20220602_FINAL.pdf

@@ -10,7 +10,7 @@
 
 #pragma pack_matrix(row_major)
 
-#include "GlobalCb.h"
+#include "../GlobalCb.h"
 
 ConstantBuffer<GlobalConstants>     g_Global                    : register(b0);
 RWTexture2D<float4>                 pathTracingOutputBuffer     : register(u0);

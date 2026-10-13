@@ -12,7 +12,7 @@
 
 static_assert(NRD_VERSION_MAJOR >= 4 && NRD_VERSION_MINOR >= 0, "Unsupported NRD version!");
 
-#include "RenderTargets.h"
+#include "../RenderTargets.h"
 #include <nvrhi/utils.h>
 #include <donut/core/math/math.h>
 #include <donut/engine/View.h>
@@ -316,6 +316,11 @@ bool NrdIntegration::Initialize(uint32_t width, uint32_t height, donut::engine::
     return true;
 }
 
+const nrd::Denoiser NrdIntegration::GetDenoiser() const
+{
+    return m_denoiser;
+}
+
 bool NrdIntegration::IsAvailable() const
 {
     return m_initialized;
@@ -323,7 +328,6 @@ bool NrdIntegration::IsAvailable() const
 
 static inline void MatrixToNrd(float* dest, const dm::float4x4& m)
 {
-    dm::float4x4 tm = dm::transpose(m);
     memcpy(dest, &m, sizeof(m));
 }
 

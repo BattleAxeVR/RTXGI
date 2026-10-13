@@ -1,6 +1,6 @@
 # NRC Integration Guide
 <p align="center">
-    <img src="figures/nrc_guidebanner.png" alt>
+    <img src="Figures/nrc_guidebanner.png" alt>
     <em><small>Figure 1. Comparison of signal quality using a pathtracer at eight bounces and one sample per pixel. LHS: raw pathtracer output. Centre: pathtracer output terminating early in the NRC. RHS: Accumulated result of the pathtracer without relying on the NRC.</small></em>
 </p>
 
@@ -33,20 +33,22 @@ Instead of tracing a ray or a path to get incident radiance at a given point, we
 The decision to terminate the path early into the cache is informed by a path spread (ray cone) heuristic. The cone approximates the ray and spreads along the path as it intersects surface with various material properties. The interaction with a diffuse surface will significantly increase the cone's radius, whereas smooth/specular surfaces do not contribute as much to the cone's spread. When the radius of the cone reaches a user-specified threshold, the path is safe to terminate early in the cache. This allows the application to control the trade-off between bias and noise.
 
 
-> 📗 **Related materials**
+> 📗 **Optional related materials**
 >
 >- *[Real-time Neural Radiance Caching for Path Tracing][SiggraphPaper], SIGGRAPH 2021.*
 >- *[Advancing Real-Time Path Tracing with the Neural Radiance Cache][GTC2], GTC 2023.*
 
 
 ## Distribution
-The NRC library is a binary distribution. The content resides in [sdk-libraries/nrc][NRCPackage] and accounts for binaries per API, shader includes, and headers.
+The NRC library is a binary distribution. The content resides in [libraries/nrc][NRCPackage] and accounts for binaries per API and target architecture (`x64`, `arm64`), shader includes, and headers.
 
-|Directory          |Files                                        |
-|-------------------|---------------------------------------------|
-|[/Bin][nrcbin]     | NRC_D3D12.dll, NRC_Vulkan.dll, CUDA dlls    |
-|[/Include][nrcinc] | Nrc.hlsli, NrcD3d12.h, NrVk.h, misc helpers |
-|[/Lib][nrclib]     | NRC_D3D12.lib, NRC_Vulkan.lib               |
+|Directory                 |Files                                                    |
+|--------------------------|---------------------------------------------------------|
+|[/bin][nrcbin]/`<arch>`   | NRC_D3D12.dll, NRC_Vulkan.dll, CUDA 13 runtime dlls     |
+|[/include][nrcinc]        | Nrc.hlsli, NrcD3d12.h, NrVk.h, misc helpers             |
+|[/lib][nrclib]/`<arch>`   | NRC_D3D12.lib, NRC_Vulkan.lib                           |
+
+The sample's CMake selects the `<arch>` subdirectory matching the generator platform (`-A x64` or `-A arm64`).
 
 
 ## API Overview
@@ -75,7 +77,7 @@ At this stage, the application will include the headers inside the provided **/i
 
 > 💡 **Optional integration class.** 
 > 
-> *The application can invoke the public NRC functions in-place, where they are required, or can opt for the creation of an integration class to encapsulate the functionality (as seen in [Samples/athtracer/NrcIntegration.h][SampleNrcIntegh]). The latter approach is used in the pathtracer example for ease of readability and demonstration of the library's functionality for D3D12 and Vulkan; **it is not enforced as a best-practice**.*
+> *The application can invoke the public NRC functions in-place, where they are required, or can opt for the creation of an integration class to encapsulate the functionality (as seen in [samples/pathtracer/NrcIntegration.h][SampleNrcIntegh]). The latter approach is used in the pathtracer example for ease of readability and demonstration of the library's functionality for D3D12 and Vulkan; **it is not enforced as a best-practice**.*
 
 
 ## Step 2. Initialization and memory management mode selection
@@ -324,17 +326,17 @@ Similar to the path tracer debug views, the in-built Resolve pass can be used fo
 
 ResolveMode | Description | Correctness Interpretation | Reference Image
 ---|---|---|---
-AddQueryResultToOutput | The default behaviour. The query result is added to the output buffer. | The result should be similar to the GT pathtracer but with reduced noise and possibly brighter signal depending on materials and GT pathtracer setup (one SPP and roughly eight bounces or less). | <img max-width="100%" height="auto" src="./figures/nrc_rm0_addquery.png">
-ReplaceOutputWithQueryResult | This mode overwrites the output buffer with the query results. | | <img max-width="100%" height="auto" src="./figures/nrc_rm1_showquery.png">
-TrainingBounceHeatMap | This mode shows a heatmap for the number of training bounces. | You should see more bounces in corners and from smooth surfaces. The number of vertices in the training path maps to debug colors as follows: <br> - 1 : Dark red           (0.5, 0.0, 0.0) <br> - 2 : Red (1.0, 0.0, 0.0) <br> - 3 : Dark yellow (0.5, 0.5, 0.0) <br> - 4 : Green (0.0, 1.0, 0.0) <br> - 5 : Dark cyan (0.0, 0.5, 0.5) <br> - 6 : Blue (0.0, 0.0, 1.0) <br> - 7 : Dark blue (0.5, 0.5, 1.0) <br> - 8 or miss : White (1.0, 1.0, 1.0) | <img max-width="100%" height="auto" src="./figures/nrc_rm2_trainingheatmap.png">
-TrainingBounceHeatMapSmoothed | Same as TrainingBounceHeatMap, but smoothed over time. | | <img max-width="100%" height="auto" src="./figures/nrc_rm3_trainingheatmapsmooth.png">
-PrimaryVertexTrainingRadiance | This mode shows the reconstructed radiance for the primary ray segment. | This should look like a low resolution version of the path traced result, and it will be noisy. The radiance shown here will include 'self training', where cache lookups are injected at the tails of many of the paths. When debugging cache issues, it can sometimes be useful to disable this self training using `nrc::FrameSettings::selfTrainingAttenuation`. | <img max-width="100%" height="auto" src="./figures/nrc_rm4_primarytrainingradiance.png">
-PrimaryVertexTrainingRadianceSmoothed | Same as PrimaryVertexTrainingRadiance, but smoothed over time. | | <img max-width="100%" height="auto" src="./figures/nrc_rm5_primarytrainingradiancesmooth.png">
-SecondaryVertexTrainingRadiance | As PrimaryVertexTrainingRadiance, but for the secondary ray segment. | | <img max-width="100%" height="auto" src="./figures/nrc_rm6_secondarytrainingradiance.png">
-SecondaryVertexTrainingRadianceSmoothed | Same as SecondaryVertexTrainingRadiance, but smoothed over time. | | <img max-width="100%" height="auto" src="./figures/nrc_rm7_secondarytrainingradiancesmooth.png">
-QueryIndex | Debug mode that shows a random color that's a hash of the query index. | When things are working correctly this should look like colored noise. | <img max-width="100%" height="auto" src="./figures/nrc_rm8_queryindex.png">
-TrainingQueryIndex | Same as QueryIndex but for the training pass' self-training records. | When things are working correctly - this should look like coloured noise. | <img max-width="100%" height="auto" src="./figures/nrc_rm9_trainingqueryindex.png">
-DirectCacheView | Direct visualization of the cache (equivalent of querying at vertex zero). | The recommended tool to assess correctness of integration, this debug view should capture features such as shadows and view-dependent specular highlights and display them in a low-detail, over-smoothed output. | <img max-width="100%" height="auto" src="./figures/nrc_rm10_cacheview.gif">
+AddQueryResultToOutput | The default behaviour. The query result is added to the output buffer. | The result should be similar to the GT pathtracer but with reduced noise and possibly brighter signal depending on materials and GT pathtracer setup (one SPP and roughly eight bounces or less). | <img max-width="100%" height="auto" src="./Figures/nrc_rm0_addquery.png">
+ReplaceOutputWithQueryResult | This mode overwrites the output buffer with the query results. | | <img max-width="100%" height="auto" src="./Figures/nrc_rm1_showquery.png">
+TrainingBounceHeatMap | This mode shows a heatmap for the number of training bounces. | You should see more bounces in corners and from smooth surfaces. The number of vertices in the training path maps to debug colors as follows: <br> - 1 : Dark red           (0.5, 0.0, 0.0) <br> - 2 : Red (1.0, 0.0, 0.0) <br> - 3 : Dark yellow (0.5, 0.5, 0.0) <br> - 4 : Green (0.0, 1.0, 0.0) <br> - 5 : Dark cyan (0.0, 0.5, 0.5) <br> - 6 : Blue (0.0, 0.0, 1.0) <br> - 7 : Dark blue (0.5, 0.5, 1.0) <br> - 8 or miss : White (1.0, 1.0, 1.0) | <img max-width="100%" height="auto" src="./Figures/nrc_rm2_trainingheatmap.png">
+TrainingBounceHeatMapSmoothed | Same as TrainingBounceHeatMap, but smoothed over time. | | <img max-width="100%" height="auto" src="./Figures/nrc_rm3_trainingheatmapsmooth.png">
+PrimaryVertexTrainingRadiance | This mode shows the reconstructed radiance for the primary ray segment. | This should look like a low resolution version of the path traced result, and it will be noisy. The radiance shown here will include 'self training', where cache lookups are injected at the tails of many of the paths. When debugging cache issues, it can sometimes be useful to disable this self training using `nrc::FrameSettings::selfTrainingAttenuation`. | <img max-width="100%" height="auto" src="./Figures/nrc_rm4_primarytrainingradiance.png">
+PrimaryVertexTrainingRadianceSmoothed | Same as PrimaryVertexTrainingRadiance, but smoothed over time. | | <img max-width="100%" height="auto" src="./Figures/nrc_rm5_primarytrainingradiancesmooth.png">
+SecondaryVertexTrainingRadiance | As PrimaryVertexTrainingRadiance, but for the secondary ray segment. | | <img max-width="100%" height="auto" src="./Figures/nrc_rm6_secondarytrainingradiance.png">
+SecondaryVertexTrainingRadianceSmoothed | Same as SecondaryVertexTrainingRadiance, but smoothed over time. | | <img max-width="100%" height="auto" src="./Figures/nrc_rm7_secondarytrainingradiancesmooth.png">
+QueryIndex | Debug mode that shows a random color that's a hash of the query index. | When things are working correctly this should look like colored noise. | <img max-width="100%" height="auto" src="./Figures/nrc_rm8_queryindex.png">
+TrainingQueryIndex | Same as QueryIndex but for the training pass' self-training records. | When things are working correctly - this should look like coloured noise. | <img max-width="100%" height="auto" src="./Figures/nrc_rm9_trainingqueryindex.png">
+DirectCacheView | Direct visualization of the cache (equivalent of querying at vertex zero). | The recommended tool to assess correctness of integration, this debug view should capture features such as shadows and view-dependent specular highlights and display them in a low-detail, over-smoothed output. | <img max-width="100%" height="auto" src="./Figures/nrc_rm10_cacheview.gif">
 
 ## Nsight Graphics Frame Debugging
 During the integration it is important to ensure that the NRC buffers are correctly written to by the application's pathtracer. This can be achieved with Nsight Graphics frame capture in conjunction with custom structure definitions for ease of readability.
@@ -364,22 +366,22 @@ The Structured Memory Configuration feature in Nsight comes in handy for inspect
     <em><small>Table 1. Expected values at frame dimensions 1920 x 1080, with a training resolution of 274 x 154, maximum path length of eight bounces, one SPP.</small></em>
 </p>
 
-[NrcPackage]: ../Libraries/nrc
-[NrcIntegration]: ../Samples/Pathtracer/NrcIntegration.h
+[NrcPackage]: ../libraries/nrc
+[NrcIntegration]: ../samples/pathtracer/NrcIntegration.h
 [SiggraphPaper]: https://research.nvidia.com/publication/2021-06_real-time-neural-radiance-caching-path-tracing
 [GTC1]: https://www.nvidia.com/en-us/on-demand/session/gtcspring21-e31307/
 [GTC2]: https://www.nvidia.com/en-us/on-demand/session/gtcspring23-s51967/
-[nrcbin]: ../Libraries/Nrc/Bin
-[nrcinc]: ../Libraries/Nrc/Include
-[nrclib]: ../Libraries/Nrc/Lib
+[nrcbin]: ../libraries/nrc/bin
+[nrcinc]: ../libraries/nrc/include
+[nrclib]: ../libraries/nrc/lib
 [DocsMemoryLayout]: https://github.com/Microsoft/DirectXShaderCompiler/blob/main/docs/SPIR-V.rst#memory-layout-rules
-[SampleNrcIntegh]: ../Samples/Pathtracer/NrcIntegration.h
-[SampleNrcIntegc]: ../Samples/Pathtracer/NrcIntegration.cpp
-[NrcPathtracing]: figures/nrc_intropath.png
-[NrcTermination]: figures/nrc_introtermination.svg
-[NrcIntegWorkflow]: figures/nrc_integworkflow.svg
+[SampleNrcIntegh]: ../samples/pathtracer/NrcIntegration.h
+[SampleNrcIntegc]: ../samples/pathtracer/NrcIntegration.cpp
+[NrcPathtracing]: Figures/nrc_intropath.png
+[NrcTermination]: Figures/nrc_introtermination.svg
+[NrcIntegWorkflow]: Figures/nrc_integworkflow.svg
 [DebugMethods]: #debugging
-[DebugNsight]: figures/nrc_debugnsight.png
+[DebugNsight]: Figures/nrc_debugnsight.png
 [NrcD3d12h]: https://github.com/NVIDIAGameWorks/NRC/blob/main/include/NrcD3d12.h
 [NrcVkh]: https://github.com/NVIDIAGameWorks/NRC/blob/main/include/NrcVk.h
 [Nrchlsli]: https://github.com/NVIDIAGameWorks/NRC/blob/main/include/Nrc.hlsli

@@ -21,9 +21,9 @@
 #define ENABLE_NRC 1
 #include "Nrc.hlsli"
 
-#include "Brdf.h"
-#include "GlobalCb.h"
-#include "LightingCb.h"
+#include "Brdf.hlsli"
+#include "../GlobalCb.h"
+#include "../LightingCb.h"
 #include "PathtracerUtils.hlsli"
 
 #define SHARC_MATERIAL_DEMODULATION     1
@@ -88,7 +88,7 @@ RWStructuredBuffer<uint>                        countersData                : re
 #define WRITE_TRAINING_OUTPUT_DEBUG_PARAMS
 #define WRITE_QUERY_OUTPUT_DEBUG_PARAMS
 
-RWStructuredBuffer<uint64_t>                u_SharcHashEntriesBuffer        : register(u0, space3);
+RWStructuredBuffer<HashGridKey>             u_SharcHashEntriesBuffer        : register(u0, space3);
 RWStructuredBuffer<uint>                    u_SharcLockBuffer               : register(u1, space3);
 RWStructuredBuffer<SharcAccumulationData>   u_SharcAccumulationBuffer       : register(u2, space3);
 RWStructuredBuffer<SharcPackedData>         u_SharcResolvedBuffer           : register(u3, space3);
@@ -223,7 +223,7 @@ float GetSpecularBrdfProbability(MaterialSample material, float3 viewVector, flo
     return clamp(probability, 0.1f, 0.9f);
 #else // !ENABLE_SPECULAR_LOBE
     return 0.0f;
-#endif // !ENABLE_SPECULAR_LOBE
+#endif // ENABLE_SPECULAR_LOBE
 }
 
 struct Attributes
@@ -358,7 +358,7 @@ void ResolveSampleData(inout AccumulatedSampleData accumulatedSampleData, uint s
     uint diffuseSampleNum = accumulatedSampleData.diffuseSampleNum;
 #else // !ENABLE_SPECULAR_LOBE
     uint diffuseSampleNum = sampleNum;
-#endif // !ENABLE_SPECULAR_LOBE
+#endif // ENABLE_SPECULAR_LOBE
     if (diffuseSampleNum)
     {
         accumulatedSampleData.radiance *= (intensityScale / diffuseSampleNum);
@@ -368,7 +368,7 @@ void ResolveSampleData(inout AccumulatedSampleData accumulatedSampleData, uint s
 #else // !ENABLE_NRD
     accumulatedSampleData.radiance *= (intensityScale / sampleNum);
     u_Output[DispatchRaysIndex().xy] = float4(accumulatedSampleData.radiance, 1.0f);
-#endif // !ENABLE_NRD
+#endif // ENABLE_NRD
 }
 
 void PathTraceRays()
@@ -377,13 +377,13 @@ void PathTraceRays()
     const bool enableNrd = true;
 #else // !ENABLE_NRD
     const bool enableNrd = false;
-#endif // !ENABLE_NRD
+#endif // ENABLE_NRD
 
 #if (NRC_UPDATE || SHARC_UPDATE)
     const bool isUpdatePass = true;
 #else // !(NRC_UPDATE || SHARC_UPDATE)
     const bool isUpdatePass = false;
-#endif // !(NRC_UPDATE || SHARC_UPDATE)
+#endif // (NRC_UPDATE || SHARC_UPDATE)
 
     const uint2 launchIndex = DispatchRaysIndex().xy;
     const uint2 launchDimensions = DispatchRaysDimensions().xy;
@@ -406,26 +406,25 @@ void PathTraceRays()
     // Initialize SHARC parameters
     SharcParameters sharcParameters;
     {
-        sharcParameters.gridParameters.cameraPosition = g_Lighting.sharcCameraPosition.xyz;
-        sharcParameters.gridParameters.sceneScale = g_Lighting.sharcSceneScale;
-        sharcParameters.gridParameters.logarithmBase = SHARC_GRID_LOGARITHM_BASE;
-        sharcParameters.gridParameters.levelBias = SHARC_GRID_LEVEL_BIAS;
+        sharcParameters.hashGridParameters.cameraPosition = g_Lighting.sharcCameraPosition.xyz;
+        sharcParameters.hashGridParameters.sceneScale = g_Lighting.sharcSceneScale;
+        sharcParameters.hashGridParameters.logarithmBase = SHARC_GRID_LOGARITHM_BASE;
+        sharcParameters.hashGridParameters.levelBias = SHARC_GRID_LEVEL_BIAS;
 
-        sharcParameters.hashMapData.capacity = g_Lighting.sharcEntriesNum;
-        sharcParameters.hashMapData.hashEntriesBuffer = u_SharcHashEntriesBuffer;
+        sharcParameters.hashGridData.capacity = g_Lighting.sharcEntriesNum;
+        sharcParameters.hashGridData.hashEntriesBuffer = u_SharcHashEntriesBuffer;
 
-#if !SHARC_ENABLE_64_BIT_ATOMICS
-        sharcParameters.hashMapData.lockBuffer = u_SharcLockBuffer;
-#endif // !SHARC_ENABLE_64_BIT_ATOMICS
+#if !HASH_GRID_ENABLE_64_BIT_ATOMICS
+        sharcParameters.hashGridData.lockBuffer = u_SharcLockBuffer;
+#endif // !HASH_GRID_ENABLE_64_BIT_ATOMICS
 
         sharcParameters.accumulationBuffer = u_SharcAccumulationBuffer;
         sharcParameters.resolvedBuffer = u_SharcResolvedBuffer;
         sharcParameters.radianceScale = SHARC_RADIANCE_SCALE;
-        sharcParameters.enableAntiFireflyFilter = g_Lighting.sharcEnableAntifirefly;
     }
 
-    const int samplesPerPixel = isUpdatePass ? 1 : g_Global.samplesPerPixel;
-    for (int sampleIndex = 0; sampleIndex < samplesPerPixel; sampleIndex++)
+    const uint samplesPerPixel = isUpdatePass ? 1 : g_Global.samplesPerPixel;
+    for (uint sampleIndex = 0; sampleIndex < samplesPerPixel; sampleIndex++)
     {
         // Initialize NRC data for path and sample index traced in this thread
         NrcPathState nrcPathState = NrcCreatePathState(g_Lighting.nrcConstants, Rand(rngState));
@@ -529,6 +528,10 @@ void PathTraceRays()
             SharcHitData sharcHitData;
             sharcHitData.positionWorld = hitPosition;
             sharcHitData.normalWorld = geometryNormal;
+#if SHARC_ENABLE_SH_ENCODING
+            sharcHitData.radianceDirectionWorld = viewVector;
+            sharcHitData.radianceDirectionWeight = 0;
+#endif // SHARC_ENABLE_SH_ENCODING
 #if SHARC_MATERIAL_DEMODULATION
             sharcHitData.materialDemodulation = float3(1.0f, 1.0f, 1.0f);
             if (g_Global.sharcMaterialDemodulation)
@@ -547,8 +550,8 @@ void PathTraceRays()
 
 #if SHARC_QUERY
             {
-                uint gridLevel = HashGridGetLevel(hitPosition, sharcParameters.gridParameters);
-                float voxelSize = HashGridGetVoxelSize(gridLevel, sharcParameters.gridParameters);
+                uint gridLevel = HashGridGetLevel(hitPosition, sharcParameters.hashGridParameters);
+                float voxelSize = HashGridGetVoxelSize(gridLevel, sharcParameters.hashGridParameters);
                 bool isValidHit = payload.hitDistance > voxelSize * sqrt(3.0f);
 
                 materialRoughnessPrev = min(materialRoughnessPrev, 0.99f);
@@ -569,8 +572,8 @@ void PathTraceRays()
                 {
                     float3 debugColor;
                     SharcGetCachedRadiance(sharcParameters, sharcHitData, debugColor, true);
-                    //debugColor = HashGridDebugOccupancy(launchIndex, launchDimensions, sharcParameters.hashMapData);
-                    //debugColor = HashGridDebugHashCollisions(sharcHitData.positionWorld, sharcHitData.normalWorld, sharcParameters.gridParameters, sharcParameters.hashMapData);
+                    //debugColor = HashGridDebugOccupancy(launchIndex, launchDimensions, sharcParameters.hashGridData);
+                    //debugColor = HashGridDebugHashCollisions(sharcHitData.positionWorld, sharcHitData.normalWorld, sharcParameters.hashGridParameters, sharcParameters.hashGridData);
 
                     u_Output[DispatchRaysIndex().xy] = float4(debugColor, 1.0f);
 
@@ -728,7 +731,7 @@ void PathTraceRays()
             {
                 refractiveIndex = 1.0f / refractiveIndex;
 
-                //if (g_Global.enableAbsorbtion)
+                //if (g_Global.enableAbsorption)
                 //    throughput *= exp(-0.5f * payload.hitDistance); // Beers law of attenuation
             }
 
@@ -741,7 +744,9 @@ void PathTraceRays()
             // Account for surface properties using the BRDF "weight"
             throughput *= brdfWeight;
 
+            SharcSetRadianceDirectionWeight(sharcState, (brdfType == SPECULAR_TYPE) ? saturate(1.0f - material.roughness * material.roughness) : 0.0f);
             SharcSetThroughput(sharcState, throughput);
+
             if (!isUpdatePass && luminance(throughput) < g_Global.throughputThreshold)
                 break;
         }

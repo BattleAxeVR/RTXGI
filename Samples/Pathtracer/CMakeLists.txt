@@ -10,8 +10,10 @@ cmake_minimum_required (VERSION 3.19)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../External/Donut/compileshaders.cmake)
 
-file(GLOB shaders "*.hlsl" "*.hlsli")
+file(GLOB shaders "Shaders/*.hlsl" "Shaders/*.hlsli")
 file(GLOB sources "*.cpp" "*.h")
+file(GLOB nrc_sources "Nrc/*.cpp" "Nrc/*.h")
+file(GLOB nrd_sources "Nrd/*.cpp" "Nrd/*.h")
 
 set(project Pathtracer)
 set(folder "Samples/Pathtracer")
@@ -20,7 +22,6 @@ option (NRD_EMBEDS_SPIRV_SHADERS "NRD embeds SPIRV shaders" OFF)
 option (NRD_EMBEDS_DXIL_SHADERS "NRD embeds DXIL shaders" OFF)
 option (NRD_EMBEDS_DXBC_SHADERS "NRD embeds DXBC shaders" OFF)
 
-set(NRC_LIB_DIR ${NRC_DIR}/Lib)
 
 # Is the NRC package a dev package (internal), or production
 if(EXISTS ${NRC_LIB_DIR}/NRC_D3D12_relwithdebinfo.lib OR EXISTS ${NRC_LIB_DIR}/NRC_D3D12_debug.lib) 
@@ -67,7 +68,7 @@ donut_compile_shaders(
         SHADERMAKE_OPTIONS_DXIL ${SHADERMAKE_GENERAL_ARGS_DXIL}
 )
 
-add_executable(${project} WIN32 ${sources})
+add_executable(${project} WIN32 ${sources} ${nrc_sources} ${nrd_sources})
 target_link_libraries(${project} donut_render donut_app donut_engine NRD)
 add_dependencies(${project} ${project}_shaders nrd_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
@@ -97,22 +98,23 @@ include_directories("${NRC_DIR}/include" "${NRD_PATH}/Include")
 
 # Copy Agility SDK binaries (if needed) one level below project executable to avoid known issues.
 # Details in the section "Known Issues" https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/
+set(AGILITY_SDK_BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../External/AgilitySDK/build/native/bin/${RTXGI_TARGET_ARCH})
 add_custom_command(TARGET ${project} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different 
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../External/AgilitySDK/build/native/bin/x64/D3D12Core.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${AGILITY_SDK_BIN_DIR}/D3D12Core.dll
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/D3D12/D3D12Core.dll
 )
 
 add_custom_command(TARGET ${project} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../External/AgilitySDK/build/native/bin/x64/d3d12SDKLayers.dll
+    ${AGILITY_SDK_BIN_DIR}/d3d12SDKLayers.dll
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/D3D12/d3d12SDKLayers.dll
 )
 
 # Copy runtime libraries
-file(GLOB NVRTC64_PATH "${NRC_DIR}/bin/nvrtc64_*")
-file(GLOB CUDART64_PATH "${NRC_DIR}/bin/cudart64_*")
-file(GLOB NVRTC_BUILTINS64 "${NRC_DIR}/bin/nvrtc-builtins64_*")
+file(GLOB NVRTC64_PATH "${NRC_BIN_DIR}/nvrtc64_*")
+file(GLOB CUDART64_PATH "${NRC_BIN_DIR}/cudart64_*")
+file(GLOB NVRTC_BUILTINS64 "${NRC_BIN_DIR}/nvrtc-builtins64_*")
 add_custom_command(
     TARGET ${project} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "${NVRTC64_PATH}"
@@ -125,7 +127,7 @@ add_custom_command(
 
 set( copy_nrc_d3d_command
     ${CMAKE_COMMAND} -E copy
-    "${NRC_DIR}/bin/$<$<CONFIG:Debug>:${NRC_LIBRARY_NAME_D3D12_DEBUG}>$<$<CONFIG:Release,RelWithDebInfo>:${NRC_LIBRARY_NAME_D3D12_RELEASE}>.dll"
+    "${NRC_BIN_DIR}/$<$<CONFIG:Debug>:${NRC_LIBRARY_NAME_D3D12_DEBUG}>$<$<CONFIG:Release,RelWithDebInfo>:${NRC_LIBRARY_NAME_D3D12_RELEASE}>.dll"
     $<TARGET_FILE_DIR:${project}>
 )
 add_custom_command( TARGET ${project} POST_BUILD
@@ -136,7 +138,7 @@ add_custom_command( TARGET ${project} POST_BUILD
 if(DONUT_WITH_VULKAN AND SETUP_NRC_WITH_VULKAN)
     set( copy_nrc_vulkan_command
         ${CMAKE_COMMAND} -E copy
-        "${NRC_DIR}/bin/$<$<CONFIG:Debug>:${NRC_LIBRARY_NAME_VULKAN_DEBUG}>$<$<CONFIG:Release,RelWithDebInfo>:${NRC_LIBRARY_NAME_VULKAN_RELEASE}>.dll"
+        "${NRC_BIN_DIR}/$<$<CONFIG:Debug>:${NRC_LIBRARY_NAME_VULKAN_DEBUG}>$<$<CONFIG:Release,RelWithDebInfo>:${NRC_LIBRARY_NAME_VULKAN_RELEASE}>.dll"
         $<TARGET_FILE_DIR:${project}>
     )
     add_custom_command( TARGET ${project} POST_BUILD 

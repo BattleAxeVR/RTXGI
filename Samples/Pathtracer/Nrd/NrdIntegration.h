@@ -28,6 +28,11 @@ public:
     NrdIntegration(nvrhi::IDevice* device, nrd::Denoiser method);
     ~NrdIntegration();
 
+    NrdIntegration(const NrdIntegration&) = delete;
+    NrdIntegration& operator=(const NrdIntegration&) = delete;
+    NrdIntegration(NrdIntegration&&) = delete;
+    NrdIntegration& operator=(NrdIntegration&&) = delete;
+
     bool Initialize(uint32_t width, uint32_t height, donut::engine::ShaderFactory& shaderFactory);
     bool IsAvailable() const;
 
@@ -45,10 +50,7 @@ public:
         const void* methodSettings,
         bool reset);
 
-    const nrd::Denoiser GetDenoiser() const
-    {
-        return m_denoiser;
-    }
+    const nrd::Denoiser GetDenoiser() const;
 
 private:
     nvrhi::DeviceHandle m_device;

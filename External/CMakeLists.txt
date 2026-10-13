@@ -52,7 +52,14 @@ set(NRD_PROJECT_FOLDER "External/RayTracingDenoiser")
 set(NRD_NORMAL_ENCODING "2" CACHE STRING "Normal encoding variant (0-4, matches nrd::NormalEncoding)")
 set(NRD_ROUGHNESS_ENCODING "1" CACHE STRING "Roughness encoding variant (0-2, matches nrd::RoughnessEncoding)")
 set(NRD_IS_SUBMODULE ON)
-# NRD uses a custom output path for some reason
+# On arm64, NRD's MathLib runs on top of sse2neon, which needs the conforming MSVC preprocessor and
+# emits a couple of warnings that NRD's /WX would otherwise promote. MSVC also has no SVML intrinsics
+# on arm64, so force MathLib's emulation path. All of this is scoped to this directory (NRD only).
+if(MSVC AND RTXGI_TARGET_ARCH STREQUAL "arm64")
+    string(APPEND CMAKE_CXX_FLAGS " /Zc:preprocessor /wd4310 /wd4127")
+    add_compile_definitions(ML_SVML_AVAILABLE=0)
+endif()
+# NRD uses a custom output path
 set(GLOBAL_BIN_OUTPUT_PATH ${CMAKE_BINARY_DIR} CACHE STRING "")
 set(NRD_SHADERS_PATH "${CMAKE_BINARY_DIR}/NRDShaders" CACHE STRING "")
 option(NRD_DISABLE_SHADER_COMPILATION "" ON)

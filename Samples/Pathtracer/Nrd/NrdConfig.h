@@ -18,7 +18,7 @@ enum class DenoiserMethod : uint32_t
 {
     REBLUR,
     RELAX,
-    MaxCount
+    Count
 };
 
 nrd::RelaxSettings GetDefaultRELAXSettings();

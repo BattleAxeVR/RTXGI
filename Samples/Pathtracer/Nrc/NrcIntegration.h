@@ -33,6 +33,8 @@ struct NrcBufferHandles
 class NrcIntegration
 {
 public:
+    virtual ~NrcIntegration() = default;
+
     virtual bool Initialize(nvrhi::IDevice* device) = 0;
 
     virtual void Shutdown() = 0;
@@ -51,10 +53,7 @@ public:
 
     virtual void PopulateShaderConstants(struct NrcConstants& outConstants) const = 0;
 
-    bool IsInitialized() const
-    {
-        return m_initialized;
-    };
+    bool IsInitialized() const;
 
     NrcBufferHandles m_bufferHandles;
 

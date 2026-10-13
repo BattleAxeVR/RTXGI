@@ -25,11 +25,11 @@ struct DescriptorSetIDs
         Nrc,
         Sharc,
         Bindless,
-        COUNT
+        Count
     };
 };
 
-class PathtracerPipelines
+class Pipelines
 {
 public:
     struct Permutation
@@ -43,12 +43,12 @@ public:
     {
         DefaultPathTracing,
 #if ENABLE_NRC
-        NRC_Update,
-        NRC_Query,
+        NrcUpdate,
+        NrcQuery,
 #endif // ENABLE_NRC
 #if ENABLE_SHARC
-        Sharc_Update,
-        Sharc_Query,
+        SharcUpdate,
+        SharcQuery,
 #endif // ENABLE_SHARC
         Count
     };
@@ -65,7 +65,7 @@ public:
 #if ENABLE_SHARC
         nvrhi::BindingLayoutHandle sharc;
 #endif // ENABLE_SHARC
-        nvrhi::BindingLayoutHandle dummy[DescriptorSetIDs::COUNT];
+        nvrhi::BindingLayoutHandle dummy[DescriptorSetIDs::Count];
     };
 
     void CreateCommon(nvrhi::IDevice* device, donut::engine::ShaderFactory& shaderFactory, nvrhi::GraphicsAPI api, const BindingLayouts& layouts);

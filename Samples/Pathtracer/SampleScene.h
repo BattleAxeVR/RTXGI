@@ -22,9 +22,9 @@
 #include <string>
 #include <vector>
 
-#include "PathtracerUi.h"
+#include "UI.h"
 
-class PathtracerScene
+class SampleScene
 {
 public:
     // Called from Pathtracer::LoadScene
@@ -59,7 +59,7 @@ public:
 
     std::shared_ptr<donut::engine::DirectionalLight> GetSunLight() const;
 
-    bool WasReloaded() const;
+    bool IsReloaded() const;
 
     void ClearReloaded();
 

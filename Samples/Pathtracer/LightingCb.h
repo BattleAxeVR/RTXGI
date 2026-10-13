@@ -22,8 +22,11 @@
 #include "NRCStructures.h"
 #endif // ENABLE_NRC
 
-#define MAX_LIGHTS           8
-#define SHARC_RADIANCE_SCALE 1e3f
+#define MAX_LIGHTS 8
+
+#define HASH_GRID_COMPACT        0
+#define SHARC_RADIANCE_SCALE     1e3f
+#define SHARC_ENABLE_SH_ENCODING 0
 
 struct LightingConstants
 {
@@ -32,7 +35,7 @@ struct LightingConstants
     int lightCount;
     int sharcAccumulationFrameNum;
     int sharcStaleFrameNum;
-    int sharcEnableAntifirefly;
+    int sharcEnableAntiFireflyFilter;
 
     int sharcEntriesNum;
     int sharcDownscaleFactor;

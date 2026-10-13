@@ -13,14 +13,13 @@
 
 #include <algorithm>
 
-#include "AppUtils.h"
-#include "PathtracerScene.h"
+#include "SampleScene.h"
 
 using namespace donut::app;
 using namespace donut::engine;
 using namespace donut::math;
 
-bool PathtracerScene::Load(
+bool SampleScene::Load(
     nvrhi::IDevice* device,
     donut::engine::ShaderFactory& shaderFactory,
     std::shared_ptr<donut::vfs::IFileSystem> fs,
@@ -38,7 +37,7 @@ bool PathtracerScene::Load(
     return false;
 }
 
-void PathtracerScene::OnLoaded(uint32_t frameIndex, UIData& ui, FirstPersonCamera& camera, bool& resetAccumulation, bool& rebuildAS, uint32_t& accumulatedFrameCount)
+void SampleScene::OnLoaded(uint32_t frameIndex, UIData& ui, FirstPersonCamera& camera, bool& resetAccumulation, bool& rebuildAS, uint32_t& accumulatedFrameCount)
 {
     m_scene->FinishedLoading(frameIndex);
 
@@ -95,7 +94,7 @@ void PathtracerScene::OnLoaded(uint32_t frameIndex, UIData& ui, FirstPersonCamer
     m_sunLight->SetDirection(dm::double3(-0.049f, -0.87f, 0.48f));
 }
 
-void PathtracerScene::OnUnloading(UIData& ui)
+void SampleScene::OnUnloading(UIData& ui)
 {
     m_sunLight = nullptr;
     m_headLight = nullptr;
@@ -104,7 +103,7 @@ void PathtracerScene::OnUnloading(UIData& ui)
     ui.targetLight = -1;
 }
 
-void PathtracerScene::DiscoverScenes(const std::filesystem::path& mediaPath)
+void SampleScene::DiscoverScenes(const std::filesystem::path& mediaPath)
 {
     const std::string mediaExt = ".scene.json";
     for (const auto& file : std::filesystem::directory_iterator(mediaPath))
@@ -119,27 +118,27 @@ void PathtracerScene::DiscoverScenes(const std::filesystem::path& mediaPath)
     }
 }
 
-const std::vector<std::string>& PathtracerScene::GetAvailableScenes() const
+const std::vector<std::string>& SampleScene::GetAvailableScenes() const
 {
     return m_sceneFilesAvailable;
 }
 
-const std::string& PathtracerScene::GetCurrentSceneName() const
+const std::string& SampleScene::GetCurrentSceneName() const
 {
     return m_currentSceneName;
 }
 
-void PathtracerScene::SetCurrentSceneName(const std::string& sceneName)
+void SampleScene::SetCurrentSceneName(const std::string& sceneName)
 {
     m_currentSceneName = sceneName;
 }
 
-void PathtracerScene::SetPreferredSceneName(const std::string& sceneName)
+void SampleScene::SetPreferredSceneName(const std::string& sceneName)
 {
     m_currentSceneName = FindPreferredScene(m_sceneFilesAvailable, sceneName);
 }
 
-void PathtracerScene::CopyActiveCameraToFirstPerson(UIData& ui, FirstPersonCamera& camera)
+void SampleScene::CopyActiveCameraToFirstPerson(UIData& ui, FirstPersonCamera& camera)
 {
     if (ui.activeSceneCamera)
     {
@@ -149,27 +148,27 @@ void PathtracerScene::CopyActiveCameraToFirstPerson(UIData& ui, FirstPersonCamer
     }
 }
 
-std::shared_ptr<donut::engine::Scene> PathtracerScene::GetScene() const
+std::shared_ptr<donut::engine::Scene> SampleScene::GetScene() const
 {
     return m_scene;
 }
 
-std::shared_ptr<donut::engine::DirectionalLight> PathtracerScene::GetSunLight() const
+std::shared_ptr<donut::engine::DirectionalLight> SampleScene::GetSunLight() const
 {
     return m_sunLight;
 }
 
-bool PathtracerScene::WasReloaded() const
+bool SampleScene::IsReloaded() const
 {
     return m_sceneReloaded;
 }
 
-void PathtracerScene::ClearReloaded()
+void SampleScene::ClearReloaded()
 {
     m_sceneReloaded = false;
 }
 
-void PathtracerScene::SetCameraIndex(int index)
+void SampleScene::SetCameraIndex(int index)
 {
     m_cameraIndex = index;
 }

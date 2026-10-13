@@ -53,7 +53,7 @@ function(CheckAndDownloadPackage NAME VERSION LOCAL_PATH URL ARCHIVE_TYPE)
     endif()
 endfunction()
 
-CheckAndDownloadPackage("Agility SDK" "v1.610.4" ${CMAKE_CURRENT_SOURCE_DIR}/External/AgilitySDK https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/1.610.4 "zip")
+CheckAndDownloadPackage("Agility SDK" "v1.616.1" ${CMAKE_CURRENT_SOURCE_DIR}/External/AgilitySDK https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/1.616.1 "zip")
 CheckAndDownloadPackage("DXC" "v1.7.2308" ${CMAKE_CURRENT_SOURCE_DIR}/External/dxc https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.7.2308/dxc_2023_08_14.zip "zip")
 
 # -----------------------------------------------------------------------------
@@ -69,14 +69,19 @@ set(DXC_SPIRV_PATH "${CMAKE_CURRENT_SOURCE_DIR}/External/dxc/bin/x64/dxc.exe")
 option(USE_RAY_TRACING_DENOISER "Include NRD as part of the sample." ON)
 set(NRD_PATH "${CMAKE_CURRENT_SOURCE_DIR}/External/RayTracingDenoiser")
 
-# Enable DLSS support
-unset(DONUT_WITH_DLSS CACHE)
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/External/Donut/nvrhi/cmake/NvrhiTargetArch.cmake")
+set(RTXGI_TARGET_ARCH "${NVRHI_TARGET_ARCH}")
+message(STATUS "RTXGI target architecture: ${RTXGI_TARGET_ARCH}")
+
+# Enable DLSS support (DLSS SDK 310.9+ ships both x64 and arm64 Windows binaries)
 option(DONUT_WITH_DLSS "" ON)
 
 # Setup asset importer support
 option(DONUT_WITH_ASSIMP "" OFF)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Bin")
+# Per-architecture output directory so x64 and arm64 builds do not overwrite each other's binaries
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Bin/${RTXGI_TARGET_ARCH}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
@@ -100,9 +105,20 @@ else()
     set(NRC_DIR ${NRC_CUSTOM_DISTRO_PATH})  
 endif()
 
-if(EXISTS ${NRC_DIR}/Bin/NRC_Vulkan.dll)
-    set(SETUP_NRC_WITH_VULKAN TRUE)
-    add_compile_definitions(NRC_WITH_VULKAN)   
+# Fall back to the flat bin/ and lib/ layout for older packages and local NRC SDK builds.
+if(EXISTS ${NRC_DIR}/bin/${RTXGI_TARGET_ARCH} AND EXISTS ${NRC_DIR}/lib/${RTXGI_TARGET_ARCH})
+    set(NRC_BIN_DIR ${NRC_DIR}/bin/${RTXGI_TARGET_ARCH})
+    set(NRC_LIB_DIR ${NRC_DIR}/lib/${RTXGI_TARGET_ARCH})
+else()
+    set(NRC_BIN_DIR ${NRC_DIR}/bin)
+    set(NRC_LIB_DIR ${NRC_DIR}/lib)
+endif()
+message(STATUS "NRC binaries: ${NRC_BIN_DIR}")
+
+# Enable NRC Vulkan support if the package contains a Vulkan binary (production or dev naming)
+if(EXISTS ${NRC_BIN_DIR}/NRC_Vulkan.dll OR EXISTS ${NRC_BIN_DIR}/NRC_Vulkan_debug.dll OR EXISTS ${NRC_BIN_DIR}/NRC_Vulkan_relwithdebinfo.dll)
+    set(SETUP_NRC_WITH_VULKAN TRUE) #TODO: maybe not required...
+    add_compile_definitions(NRC_WITH_VULKAN)
 endif()
 
 unset(DONUT_WITH_VULKAN CACHE)
@@ -122,6 +138,7 @@ if(NVRHI_WITH_VULKAN OR NVRHI_WITH_DX12)
     # Set Pathtracer sample project as a startup project
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Pathtracer)
 endif()
+
 
 # Add SHARC includes to the solution
 set(SHARC_LIBRARY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/Sharc")

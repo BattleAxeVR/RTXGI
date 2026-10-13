@@ -30,7 +30,7 @@
 
 #include <string>
 #include <mutex>
-#include "../../donut/nvrhi/src/vulkan/vulkan-backend.h"
+#include <vulkan/vulkan.h>
 
 using namespace donut::math;
 
@@ -39,7 +39,7 @@ using namespace donut::math;
         if (x)                                                                                                                                                                     \
         {                                                                                                                                                                          \
             x->Release();                                                                                                                                                          \
-            x = NULL;                                                                                                                                                              \
+            x = nullptr;                                                                                                                                                           \
         }                                                                                                                                                                          \
     }
 
@@ -56,33 +56,22 @@ static void NrcLoggerCallback(const char* message, nrc::LogLevel logLevel)
 {
 
     static std::mutex loggerMutex;
-
-    // Make the logging thread-safe
-    loggerMutex.lock();
+    std::lock_guard<std::mutex> guard(loggerMutex);
     {
         const int kMinLogLevel = (int)nrc::LogLevel::Info;
         if (((int)logLevel >= kMinLogLevel) || (logLevel == nrc::LogLevel::Error))
         {
             std::wstring wstr = NrcUtils::StringToWstring(message);
             OutputDebugString(wstr.c_str());
-#if 0
-            if (logLevel == nrc::LogLevel::Error)
-            {
-                // Halt on NRC error
-                NrcUtils::Validate(E_FAIL, LPWSTR(wstr.c_str()));
-            }
-#endif
         }
     }
-    loggerMutex.unlock();
 }
 
 static void NrcMemoryEventsCallback(nrc::MemoryEventType eventType, size_t size, const char* bufferName)
 {
 
     static std::mutex loggerMutex;
-
-    loggerMutex.lock();
+    std::lock_guard<std::mutex> guard(loggerMutex);
     {
         std::string message = "NRC SDK Memory Stats: ";
 
@@ -103,7 +92,6 @@ static void NrcMemoryEventsCallback(nrc::MemoryEventType eventType, size_t size,
         OutputDebugStringA(message.c_str());
 #endif
     }
-    loggerMutex.unlock();
 }
 
 static void* NrcCustomAllocatorCallback(const size_t bytes)
@@ -114,6 +102,11 @@ static void* NrcCustomAllocatorCallback(const size_t bytes)
 static void NrcCustomDeallocatorCallback(void* pointer, const size_t bytes)
 {
     delete[] pointer;
+}
+
+bool NrcIntegration::IsInitialized() const
+{
+    return m_initialized;
 }
 
 static void FillBufferDescs(nvrhi::BufferDesc* bufferDescs, nrc::BuffersAllocationInfo const& buffersAllocationInfo)
@@ -142,7 +135,7 @@ static void FillBufferDescs(nvrhi::BufferDesc* bufferDescs, nrc::BuffersAllocati
     }
 }
 
-static void CreateResources(nvrhi::BufferDesc const* bufferDescs, NrcBufferHandles& m_nrcBufferHandles, nvrhi::IDevice* device)
+static void CreateResources(nvrhi::BufferDesc const* bufferDescs, NrcBufferHandles& nrcBufferHandles, nvrhi::IDevice* device)
 {
     // Create NVRHI buffers
     for (uint i = 0; i < (uint)nrc::BufferIdx::Count; ++i)
@@ -150,9 +143,9 @@ static void CreateResources(nvrhi::BufferDesc const* bufferDescs, NrcBufferHandl
         nvrhi::BufferDesc const& bufferDesc = bufferDescs[i];
         const nrc::BufferIdx bufferIdx = (nrc::BufferIdx)i;
         if (bufferDesc.byteSize > 0)
-            m_nrcBufferHandles[bufferIdx] = device->createBuffer(bufferDesc);
+            nrcBufferHandles[bufferIdx] = device->createBuffer(bufferDesc);
         else
-            m_nrcBufferHandles[bufferIdx] = nullptr;
+            nrcBufferHandles[bufferIdx] = nullptr;
     }
 }
 
@@ -466,11 +459,7 @@ public:
                 m_buffers[bufferIdx].resource = reinterpret_cast<VkBuffer>(m_bufferHandles[bufferIdx]->getNativeObject(nvrhi::ObjectTypes::VK_Buffer).pointer);
                 m_buffers[bufferIdx].allocatedSize = bufferDescs[i].byteSize;
                 m_buffers[bufferIdx].allocatedOffset = 0;
-
-                auto addressInfo = vk::BufferDeviceAddressInfo().setBuffer(m_buffers[bufferIdx].resource);
-
-                VkDevice nativeDevice = m_device->getNativeObject(nvrhi::ObjectTypes::VK_Device);
-                m_buffers[bufferIdx].deviceAddress = vk::Device(nativeDevice).getBufferAddress(addressInfo);
+                m_buffers[bufferIdx].deviceAddress = m_bufferHandles[bufferIdx]->getGpuVirtualAddress();
             }
             status = m_nrcContext->Configure(contextSettings, &m_buffers);
         }

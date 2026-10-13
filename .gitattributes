@@ -1,0 +1,8 @@
+# GitHub Linguist: the sample is the SDK source, not vendored code
+Samples/** linguist-vendored=false
+Samples/** linguist-detectable=true
+
+# Classify shaders and headers explicitly
+*.hlsl  linguist-language=HLSL
+*.hlsli linguist-language=HLSL
+*.h     linguist-language=C++

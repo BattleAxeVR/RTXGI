@@ -24,7 +24,6 @@
 
 #include <random>
 
-#include "AppUtils.h"
 #include "Pathtracer.h"
 #include "ScopedMarker.h"
 
@@ -34,21 +33,22 @@ using namespace donut::engine;
 using namespace donut::math;
 
 #if ENABLE_NRC
-#include "NrcUtils.h"
+#include "Nrc/NrcUtils.h"
 #endif // ENABLE_NRC
 
 #include "LightingCb.h"
 #include "GlobalCb.h"
 
 #if ENABLE_NRD
-#include "NrdConfig.h"
+#include "Nrd/NrdConfig.h"
 #endif // ENABLE_NRD
+
 
 // Required for Agility SDK on Windows 10. Setup 1.c. 2.a.
 // https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/
 extern "C"
 {
-    __declspec(dllexport) extern const UINT D3D12SDKVersion = 610;
+    __declspec(dllexport) extern const UINT D3D12SDKVersion = 616;
 }
 extern "C"
 {
@@ -67,8 +67,30 @@ extern "C"
 
 extern const char* g_WindowTitle; //  Defined in Main.cpp
 
+
+namespace
+{
+uint32_t DivideRoundUp(uint32_t x, uint32_t divisor)
+{
+    return (x + divisor - 1) / divisor;
+}
+
+donut::math::float2 GetPixelOffset(int frameIndex)
+{
+    donut::math::float2 pixelOffset;
+
+    std::mt19937 rng(frameIndex);
+    std::uniform_real_distribution<float> dist(-0.5f, 0.5f);
+    pixelOffset.x = dist(rng);
+    pixelOffset.y = dist(rng);
+
+    return pixelOffset;
+}
+} // namespace
+
 Pathtracer::Pathtracer(DeviceManager* deviceManager, UIData& ui, nvrhi::GraphicsAPI api) : ApplicationBase(deviceManager), m_ui(ui), m_api(api)
 {
+    m_updatePassView = std::make_unique<PlanarViewConstants>();
 }
 
 Pathtracer::~Pathtracer()
@@ -78,7 +100,7 @@ Pathtracer::~Pathtracer()
 #endif // ENABLE_NRC
 }
 
-bool Pathtracer::Init(int argc, const char* const* argv)
+bool Pathtracer::Initialize(int argc, const char* const* argv)
 {
     char* sceneName = nullptr;
     for (int n = 1; n < argc; n++)
@@ -105,8 +127,8 @@ bool Pathtracer::Init(int argc, const char* const* argv)
     m_accumulatedFrameCount = 0;
 
     m_nativeFileSystem = std::make_shared<vfs::NativeFileSystem>();
-    std::filesystem::path sceneFileName = app::GetDirectoryWithExecutable().parent_path() / "Assets/Media/bistro.scene.json";
-    std::filesystem::path mediaPath = app::GetDirectoryWithExecutable().parent_path() / "Assets/Media";
+    const std::filesystem::path mediaPath = app::FindDirectory(*m_nativeFileSystem, app::GetDirectoryWithExecutable(), "Assets/Media");
+    std::filesystem::path sceneFileName = mediaPath / "bistro.scene.json";
     std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
     std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/pathtracer" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
 
@@ -120,8 +142,7 @@ bool Pathtracer::Init(int argc, const char* const* argv)
     const std::string mediaExt = ".scene.json";
     if (sceneName)
     {
-        sceneFileName = app::GetDirectoryWithExecutable().parent_path() / "Assets/Media/";
-        sceneFileName += sceneName;
+        sceneFileName = mediaPath / sceneName;
 
         if (!strstr(sceneName, mediaExt.c_str()))
             sceneFileName += ".scene.json";
@@ -136,11 +157,12 @@ bool Pathtracer::Init(int argc, const char* const* argv)
     m_CommonPasses = std::make_shared<engine::CommonRenderPasses>(GetDevice(), m_shaderFactory);
     m_bindingCache = std::make_unique<engine::BindingCache>(GetDevice());
 
-    m_accelStructManager = std::make_unique<AccelStructManager>();
-    m_pathtracerScene = std::make_unique<PathtracerScene>();
-    m_pathtracerPipelines = std::make_unique<PathtracerPipelines>();
+    m_accelStructBuilder = std::make_unique<AccelStructBuilder>();
+    m_pathtracerScene = std::make_unique<SampleScene>();
+    m_pathtracerPipelines = std::make_unique<Pipelines>();
 
-    m_pathtracerScene->DiscoverScenes(GetLocalPath("Assets/Media"));
+    // Obtain the scene
+    m_pathtracerScene->DiscoverScenes(mediaPath);
 
 #if ENABLE_NRC
     m_nrc = CreateNrcIntegration(m_api);
@@ -172,7 +194,7 @@ bool Pathtracer::Init(int argc, const char* const* argv)
     nvrhi::BindingLayoutDesc bindingLayoutDesc;
     bindingLayoutDesc.visibility = nvrhi::ShaderType::All;
     bindingLayoutDesc.registerSpaceIsDescriptorSet = (m_api == nvrhi::GraphicsAPI::VULKAN);
-    for (int i = 0; i < DescriptorSetIDs::COUNT; ++i)
+    for (int i = 0; i < DescriptorSetIDs::Count; ++i)
     {
         bindingLayoutDesc.registerSpace = i;
         m_dummyLayouts[i] = GetDevice()->createBindingLayout(bindingLayoutDesc);
@@ -251,7 +273,11 @@ bool Pathtracer::Init(int argc, const char* const* argv)
         bufferDesc.keepInitialState = true;
         bufferDesc.initialState = nvrhi::ResourceStates::UnorderedAccess;
 
+#if HASH_GRID_COMPACT
+        bufferDesc.structStride = sizeof(uint32_t);
+#else  // !HASH_GRID_COMPACT
         bufferDesc.structStride = sizeof(uint64_t);
+#endif // HASH_GRID_COMPACT
         bufferDesc.byteSize = m_sharcEntriesNum * bufferDesc.structStride;
         bufferDesc.debugName = "m_sharcHashEntriesBuffer";
         m_sharcHashEntriesBuffer = GetDevice()->createBuffer(bufferDesc);
@@ -261,13 +287,23 @@ bool Pathtracer::Init(int argc, const char* const* argv)
         bufferDesc.debugName = "m_sharcLockBuffer";
         m_sharcLockBuffer = GetDevice()->createBuffer(bufferDesc);
 
-        bufferDesc.structStride = 4 * sizeof(uint32_t);
+#if SHARC_ENABLE_SH_ENCODING
+        constexpr uint32_t sharcAccumulationBufferStride = 8 * sizeof(uint32_t);
+        constexpr uint32_t sharcResolvedBufferStride = 6 * sizeof(uint32_t);
+#else  // !SHARC_ENABLE_SH_ENCODING
+        constexpr uint32_t sharcAccumulationBufferStride = 4 * sizeof(uint32_t);
+        constexpr uint32_t sharcResolvedBufferStride = 4 * sizeof(uint32_t);
+#endif // SHARC_ENABLE_SH_ENCODING
+
+        bufferDesc.structStride = sharcAccumulationBufferStride;
         bufferDesc.byteSize = m_sharcEntriesNum * bufferDesc.structStride;
         bufferDesc.canHaveRawViews = true;
 
         bufferDesc.debugName = "m_sharcAccumulationBuffer";
         m_sharcAccumulationBuffer = GetDevice()->createBuffer(bufferDesc);
 
+        bufferDesc.structStride = sharcResolvedBufferStride;
+        bufferDesc.byteSize = m_sharcEntriesNum * bufferDesc.structStride;
         bufferDesc.debugName = "m_sharcResolvedBuffer";
         m_sharcResolvedBuffer = GetDevice()->createBuffer(bufferDesc);
 
@@ -340,7 +376,7 @@ void Pathtracer::SceneLoaded()
     bool rebuildAS = false;
     m_pathtracerScene->OnLoaded(GetFrameIndex(), m_ui, m_camera, m_resetAccumulation, rebuildAS, m_accumulatedFrameCount);
     if (rebuildAS)
-        m_accelStructManager->RequestRebuild();
+        m_accelStructBuilder->RequestRebuild();
 }
 
 void Pathtracer::SceneUnloading()
@@ -350,7 +386,7 @@ void Pathtracer::SceneUnloading()
     m_shaderFactory->ClearCache();
     m_bindingCache->Clear();
     m_pathtracerScene->OnUnloading(m_ui);
-    m_accelStructManager->RequestRebuild();
+    m_accelStructBuilder->RequestRebuild();
 
     BackBufferResizing();
 }
@@ -516,17 +552,17 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
 
     m_commandList->open();
 
-    if (m_accelStructManager->NeedsRebuild())
+    if (m_accelStructBuilder->NeedsRebuild())
     {
         device->waitForIdle();
-        m_accelStructManager->Build(device, m_commandList, *m_pathtracerScene->GetScene(), m_ui.enableTransmission);
+        m_accelStructBuilder->Build(device, m_commandList, *m_pathtracerScene->GetScene(), m_ui.enableTransmission);
     }
 
     nvrhi::BindingSetDesc bindingSetDesc;
     bindingSetDesc.bindings = {
         nvrhi::BindingSetItem::ConstantBuffer(0, m_constantBuffer),
         nvrhi::BindingSetItem::ConstantBuffer(1, m_debugBuffer),
-        nvrhi::BindingSetItem::RayTracingAccelStruct(0, m_accelStructManager->GetTLAS()),
+        nvrhi::BindingSetItem::RayTracingAccelStruct(0, m_accelStructBuilder->GetTLAS()),
         nvrhi::BindingSetItem::StructuredBuffer_SRV(1, m_pathtracerScene->GetScene()->GetInstanceBuffer()),
         nvrhi::BindingSetItem::StructuredBuffer_SRV(2, m_pathtracerScene->GetScene()->GetGeometryBuffer()),
         nvrhi::BindingSetItem::StructuredBuffer_SRV(3, m_pathtracerScene->GetScene()->GetMaterialBuffer()),
@@ -541,31 +577,31 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
     m_commandList->commitBarriers();
 
     nvrhi::Viewport windowViewport((float)renderWidth, (float)renderHeight);
-    m_viewPrevious = m_view;
+    m_viewPrev = m_view;
     m_view.SetViewport(windowViewport);
     m_view.SetMatrices(m_camera.GetWorldToViewMatrix(), perspProjD3DStyleReverse(dm::PI_f * 0.25f, windowViewport.width() / windowViewport.height(), 0.1f));
     m_view.SetPixelOffset(pixelOffset);
 
     if (frameIndex == 0)
-        m_viewPrevious = m_view;
+        m_viewPrev = m_view;
 
     m_view.UpdateCache();
-    m_viewPrevious.UpdateCache();
+    m_viewPrev.UpdateCache();
 
-    if (m_viewPrevious.GetViewMatrix() != m_view.GetViewMatrix() || m_ui.enableAnimations)
+    if (m_viewPrev.GetViewMatrix() != m_view.GetViewMatrix() || m_ui.enableAnimations)
         m_resetAccumulation = true;
 
     m_accumulatedFrameCount = m_resetAccumulation ? 1 : m_accumulatedFrameCount + 1;
 
     m_pathtracerScene->GetScene()->Refresh(m_commandList, frameIndex);
-    m_accelStructManager->UpdateTLAS(m_commandList, *m_pathtracerScene->GetScene(), m_ui.enableTransmission);
+    m_accelStructBuilder->UpdateTLAS(m_commandList, *m_pathtracerScene->GetScene(), m_ui.enableTransmission);
 
     LightingConstants constants = {};
     constants.skyColor = float4(m_ui.skyColor * (m_ui.enableSky ? m_ui.skyIntensity : 0.0f), 1.0f);
 
     // View constants
     m_view.FillPlanarViewConstants(constants.view);
-    m_viewPrevious.FillPlanarViewConstants(constants.viewPrev);
+    m_viewPrev.FillPlanarViewConstants(constants.viewPrev);
 
     m_pathtracerScene->GetSunLight()->FillLightConstants(constants.sunLight);
 
@@ -636,37 +672,31 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
 
     constants.sharcRoughnessThreshold = 0.0f;
 
-    static PlanarViewConstants updatePassView = constants.view;
-
 #if ENABLE_SHARC
     if (m_ui.techSelection == TechSelection::Sharc)
     {
-        static float3 sharcCameraPosition = m_view.GetViewOrigin();
-        static float3 sharcCameraPositionPrev = m_view.GetViewOrigin();
         if (m_ui.sharcEnableUpdate && m_ui.sharcUpdateViewCamera)
         {
-            sharcCameraPositionPrev = sharcCameraPosition;
-            sharcCameraPosition = m_view.GetViewOrigin();
+            m_sharcCameraPositionPrev = m_sharcCameraPosition;
+            m_sharcCameraPosition = m_view.GetViewOrigin();
         }
 
         constants.sharcEntriesNum = m_sharcEntriesNum;
         constants.sharcDownscaleFactor = m_ui.sharcDownscaleFactor;
         constants.sharcSceneScale = m_ui.sharcSceneScale;
         constants.sharcRoughnessThreshold = m_ui.sharcRoughnessThreshold;
-        constants.sharcCameraPositionPrev.xyz() = sharcCameraPositionPrev;
-        constants.sharcCameraPosition.xyz() = sharcCameraPosition;
+        constants.sharcCameraPositionPrev.xyz() = m_sharcCameraPositionPrev;
+        constants.sharcCameraPosition.xyz() = m_sharcCameraPosition;
         constants.sharcAccumulationFrameNum = m_ui.sharcAccumulationFrameNum;
-        constants.sharcStaleFrameNum = m_ui.sharcStaleFrameFrameNum;
-        constants.sharcEnableAntifirefly = m_ui.sharcEnableAntiFireflyFilter;
+        constants.sharcStaleFrameNum = m_ui.sharcStaleFrameNum;
+        constants.sharcEnableAntiFireflyFilter = m_ui.sharcEnableAntiFireflyFilter;
     }
 
     if (m_ui.sharcUpdateViewCamera || m_ui.techSelection != TechSelection::Sharc)
 #endif // ENABLE_SHARC
-        updatePassView = constants.view;
+        *m_updatePassView = constants.view;
 
-    constants.updatePassView = updatePassView;
-
-    static bool enableNrd = false;
+    constants.updatePassView = *m_updatePassView;
     bool skipDenoiser = m_ui.ptDebugOutput != PTDebugOutputType::None;
 
     if (!m_denoiserBindingSet)
@@ -700,7 +730,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
         m_denoiserOutBindingSet = device->createBindingSet(bindingSetDesc, m_denoiserBindingLayout);
     }
 
-    bool resetDenoiser = enableNrd != (m_ui.denoiserType == DenoiserType::Nrd);
+    bool resetDenoiser = m_enableNrd != (m_ui.denoiserType == DenoiserType::Nrd);
     if ((resetDenoiser && !skipDenoiser) || m_ui.reloadShaders)
     {
         if (m_ui.reloadShaders)
@@ -718,7 +748,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
         m_nrd = std::make_unique<NrdIntegration>(device, nrd::Denoiser::REBLUR_DIFFUSE_SPECULAR);
         m_nrd->Initialize(renderWidth, renderHeight, *m_shaderFactory);
     }
-    enableNrd = (m_ui.denoiserType == DenoiserType::Nrd) && !skipDenoiser;
+    m_enableNrd = (m_ui.denoiserType == DenoiserType::Nrd) && !skipDenoiser;
 #endif // ENABLE_NRD
 
     m_commandList->writeBuffer(m_constantBuffer, &constants, sizeof(constants));
@@ -734,7 +764,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
     globalConstants.enableEmissives = m_ui.enableEmissives;
     globalConstants.enableLighting = m_ui.enableLighting;
     globalConstants.enableTransmission = m_ui.enableTransmission;
-    globalConstants.enableAbsorbtion = m_ui.enableAbsorbtion;
+    globalConstants.enableAbsorption = m_ui.enableAbsorption;
     globalConstants.enableTransparentShadows = m_ui.enableTransparentShadows;
     globalConstants.enableSoftShadows = m_ui.enableSoftShadows;
     globalConstants.throughputThreshold = m_ui.throughputThreshold;
@@ -763,7 +793,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
 #endif // ENABLE_SHARC
 
 #if ENABLE_NRD
-    if (enableNrd)
+    if (m_enableNrd)
     {
         nrd::HitDistanceParameters hitDistanceParameters;
         globalConstants.nrdHitDistanceParams = (float4&)hitDistanceParameters;
@@ -773,17 +803,17 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
     m_commandList->writeBuffer(m_debugBuffer, &globalConstants, sizeof(globalConstants));
     m_commandList->clearState();
 
-    using PT = PathtracerPipelines::Type;
+    using PT = Pipelines::Type;
 
     nvrhi::rt::State state;
-    for (int i = 0; i < DescriptorSetIDs::COUNT; ++i)
+    for (int i = 0; i < DescriptorSetIDs::Count; ++i)
         state.bindings.push_back(m_dummyBindingSets[i]); // Unified Binding
 
     state.bindings[DescriptorSetIDs::Globals] = m_globalBindingSet;
     state.bindings[DescriptorSetIDs::Bindless] = m_descriptorTable->GetDescriptorTable();
     state.bindings[DescriptorSetIDs::Denoiser] = m_denoiserBindingSet;
 
-    if (enableDlss || enableNrd)
+    if (enableDlss || m_enableNrd)
         m_commandList->clearTextureFloat(m_renderTargets->depth, nvrhi::AllSubresources, nvrhi::Color(0.0f));
 
     if (enableDlss)
@@ -794,7 +824,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
     {
         ScopedMarker scopedMarker(m_commandList, "Nrc");
 
-        if (enableNrd)
+        if (m_enableNrd)
             m_commandList->clearTextureFloat(m_renderTargets->outPathTracer, nvrhi::AllSubresources, nvrhi::Color(0.0f));
 
         assert(m_nrcBindingSet);
@@ -802,7 +832,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
         {
             ScopedMarker scopedMarker(m_commandList, "NrcQueryPathtracingPass");
 
-            state.shaderTable = m_pathtracerPipelines->GetPermutation(PT::NRC_Query).shaderTable;
+            state.shaderTable = m_pathtracerPipelines->GetPermutation(PT::NrcQuery).shaderTable;
             m_commandList->setRayTracingState(state);
             nvrhi::rt::DispatchRaysArguments args;
             args.width = renderWidth;
@@ -819,7 +849,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
             {
                 ScopedMarker scopedMarker(m_commandList, "NrcUpdatePathtracingPass");
 
-                state.shaderTable = m_pathtracerPipelines->GetPermutation(PT::NRC_Update).shaderTable;
+                state.shaderTable = m_pathtracerPipelines->GetPermutation(PT::NrcUpdate).shaderTable;
                 m_commandList->setRayTracingState(state);
                 args.width = m_nrcUsedTrainingWidth;
                 args.height = m_nrcUsedTrainingHeight;
@@ -852,12 +882,11 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
         assert(m_sharcBindingSet);
         state.bindings[DescriptorSetIDs::Sharc] = m_sharcBindingSet;
 
-        static bool enableMaterialDemodulation = m_ui.sharcEnableMaterialDemodulation;
         if (m_ui.sharcEnableUpdate)
         {
-            if (m_ui.sharcEnableClear || m_pathtracerScene->WasReloaded() || (enableMaterialDemodulation != m_ui.sharcEnableMaterialDemodulation))
+            if (m_ui.sharcEnableClear || m_pathtracerScene->IsReloaded() || (m_sharcMaterialDemodulationApplied != m_ui.sharcEnableMaterialDemodulation))
             {
-                enableMaterialDemodulation = m_ui.sharcEnableMaterialDemodulation;
+                m_sharcMaterialDemodulationApplied = m_ui.sharcEnableMaterialDemodulation;
 
                 m_commandList->clearBufferUInt(m_sharcHashEntriesBuffer, m_sharcInvalidEntry);
                 m_commandList->clearBufferUInt(m_sharcAccumulationBuffer, 0);
@@ -866,7 +895,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
 
             // SHARC update
             {
-                state.shaderTable = m_pathtracerPipelines->GetPermutation(PT::Sharc_Update).shaderTable;
+                state.shaderTable = m_pathtracerPipelines->GetPermutation(PT::SharcUpdate).shaderTable;
                 m_commandList->setRayTracingState(state);
 
                 nvrhi::rt::DispatchRaysArguments args;
@@ -902,7 +931,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
 
         // SHARC query
         {
-            state.shaderTable = m_pathtracerPipelines->GetPermutation(PT::Sharc_Query).shaderTable;
+            state.shaderTable = m_pathtracerPipelines->GetPermutation(PT::SharcQuery).shaderTable;
             m_commandList->setRayTracingState(state);
 
             nvrhi::rt::DispatchRaysArguments args;
@@ -927,7 +956,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
     }
 
 #if ENABLE_NRD
-    if (enableNrd)
+    if (m_enableNrd)
     {
         // Denoiser data packing
         {
@@ -946,7 +975,7 @@ void Pathtracer::Render(nvrhi::IFramebuffer* framebuffer)
         }
 
         nrd::ReblurSettings reblurSettings = NrdConfig::GetDefaultREBLURSettings();
-        m_nrd->RunDenoiserPasses(m_commandList, *m_renderTargets, 0, m_view, m_viewPrevious, GetFrameIndex(), 0.01f, 0.05f, false, false, &reblurSettings, resetDenoiser);
+        m_nrd->RunDenoiserPasses(m_commandList, *m_renderTargets, 0, m_view, m_viewPrev, GetFrameIndex(), 0.01f, 0.05f, false, false, &reblurSettings, resetDenoiser);
 
         // Denoiser resolve
         {
@@ -1070,7 +1099,7 @@ void Pathtracer::ResetAccumulation()
 
 void Pathtracer::RebuildAccelerationStructure()
 {
-    m_accelStructManager->RequestRebuild();
+    m_accelStructBuilder->RequestRebuild();
 }
 
 FirstPersonCamera* Pathtracer::GetCamera()
@@ -1095,9 +1124,9 @@ std::string Pathtracer::GetResolutionInfo()
     return "uninitialized";
 }
 
-PathtracerPipelines::BindingLayouts Pathtracer::BuildBindingLayouts() const
+Pipelines::BindingLayouts Pathtracer::BuildBindingLayouts() const
 {
-    PathtracerPipelines::BindingLayouts layouts;
+    Pipelines::BindingLayouts layouts;
     layouts.global = m_globalBindingLayout;
     layouts.denoiser = m_denoiserBindingLayout;
     layouts.bindless = m_bindlessLayout;
@@ -1107,7 +1136,7 @@ PathtracerPipelines::BindingLayouts Pathtracer::BuildBindingLayouts() const
 #if ENABLE_SHARC
     layouts.sharc = m_sharcBindingLayout;
 #endif
-    for (int i = 0; i < DescriptorSetIDs::COUNT; ++i)
+    for (int i = 0; i < DescriptorSetIDs::Count; ++i)
         layouts.dummy[i] = m_dummyLayouts[i];
     return layouts;
 }

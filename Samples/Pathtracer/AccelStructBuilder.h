@@ -13,7 +13,7 @@
 #include <donut/engine/Scene.h>
 #include <nvrhi/nvrhi.h>
 
-class AccelStructManager
+class AccelStructBuilder
 {
 public:
     void Build(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, donut::engine::Scene& scene, bool enableTransmission);

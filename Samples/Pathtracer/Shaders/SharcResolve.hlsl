@@ -8,8 +8,8 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-#include "GlobalCb.h"
-#include "LightingCb.h"
+#include "../GlobalCb.h"
+#include "../LightingCb.h"
 
 #include "SharcCommon.h"
 
@@ -18,7 +18,7 @@
 ConstantBuffer<LightingConstants>           g_Lighting                  : register(b0, space0);
 ConstantBuffer<GlobalConstants>             g_Global                    : register(b1, space0);
 
-RWStructuredBuffer<uint64_t>                u_SharcHashEntriesBuffer    : register(u0, space3);
+RWStructuredBuffer<HashGridKey>             u_SharcHashEntriesBuffer    : register(u0, space3);
 RWStructuredBuffer<SharcAccumulationData>   u_SharcAccumulationBuffer   : register(u2, space3);
 RWStructuredBuffer<SharcPackedData>         u_SharcResolvedBuffer       : register(u3, space3);
 
@@ -27,13 +27,13 @@ void sharcResolve(in uint2 did : SV_DispatchThreadID)
 {
     SharcParameters sharcParameters;
 
-    sharcParameters.gridParameters.cameraPosition = g_Lighting.sharcCameraPosition.xyz;
-    sharcParameters.gridParameters.sceneScale = g_Lighting.sharcSceneScale;
-    sharcParameters.gridParameters.logarithmBase = SHARC_GRID_LOGARITHM_BASE;
-    sharcParameters.gridParameters.levelBias = SHARC_GRID_LEVEL_BIAS;
+    sharcParameters.hashGridParameters.cameraPosition = g_Lighting.sharcCameraPosition.xyz;
+    sharcParameters.hashGridParameters.sceneScale = g_Lighting.sharcSceneScale;
+    sharcParameters.hashGridParameters.logarithmBase = SHARC_GRID_LOGARITHM_BASE;
+    sharcParameters.hashGridParameters.levelBias = SHARC_GRID_LEVEL_BIAS;
 
-    sharcParameters.hashMapData.capacity = g_Lighting.sharcEntriesNum;
-    sharcParameters.hashMapData.hashEntriesBuffer = u_SharcHashEntriesBuffer;
+    sharcParameters.hashGridData.capacity = g_Lighting.sharcEntriesNum;
+    sharcParameters.hashGridData.hashEntriesBuffer = u_SharcHashEntriesBuffer;
 
     sharcParameters.accumulationBuffer = u_SharcAccumulationBuffer;
     sharcParameters.resolvedBuffer = u_SharcResolvedBuffer;

@@ -8,14 +8,14 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-#include "PathtracerUi.h" // TODO: we do this to get the NRC and SHARC defines. Move to Defines.h
-#include "PathtracerPipelines.h"
+#include "Defines.h"
+#include "Pipelines.h"
 
 #include <algorithm>
 
 using namespace donut::engine;
 
-void PathtracerPipelines::CreateCommon(nvrhi::IDevice* device, ShaderFactory& shaderFactory, nvrhi::GraphicsAPI api, const BindingLayouts& layouts)
+void Pipelines::CreateCommon(nvrhi::IDevice* device, ShaderFactory& shaderFactory, nvrhi::GraphicsAPI api, const BindingLayouts& layouts)
 {
 #if ENABLE_SHARC
     {
@@ -25,7 +25,7 @@ void PathtracerPipelines::CreateCommon(nvrhi::IDevice* device, ShaderFactory& sh
         else
             pipelineDesc.bindingLayouts = { layouts.global, layouts.dummy[1], layouts.dummy[2], layouts.sharc };
 
-        m_sharcResolveCS = shaderFactory.CreateShader("app/SharcResolve.hlsl", "sharcResolve", nullptr, nvrhi::ShaderType::Compute);
+        m_sharcResolveCS = shaderFactory.CreateShader("app/Shaders/SharcResolve.hlsl", "sharcResolve", nullptr, nvrhi::ShaderType::Compute);
         pipelineDesc.CS = m_sharcResolveCS;
         m_sharcResolvePSO = device->createComputePipeline(pipelineDesc);
     }
@@ -35,7 +35,7 @@ void PathtracerPipelines::CreateCommon(nvrhi::IDevice* device, ShaderFactory& sh
     std::vector<ShaderMacro> denoiseMacros = { ShaderMacro("NRD_NORMAL_ENCODING", "2"), ShaderMacro("NRD_ROUGHNESS_ENCODING", "1") };
 
     {
-        m_denoiserReblurPackCS = shaderFactory.CreateShader("app/Denoiser.hlsl", "reblurPackData", &denoiseMacros, nvrhi::ShaderType::Compute);
+        m_denoiserReblurPackCS = shaderFactory.CreateShader("app/Shaders/Denoiser.hlsl", "reblurPackData", &denoiseMacros, nvrhi::ShaderType::Compute);
         nvrhi::ComputePipelineDesc pipelineDesc;
         pipelineDesc.bindingLayouts = { layouts.global, layouts.denoiser };
         pipelineDesc.CS = m_denoiserReblurPackCS;
@@ -47,7 +47,7 @@ void PathtracerPipelines::CreateCommon(nvrhi::IDevice* device, ShaderFactory& sh
         std::vector<ShaderMacro> denoiseMacrosNRC = denoiseMacros;
         denoiseMacrosNRC.push_back(ShaderMacro("ENABLE_NRC", "1"));
 
-        m_denoiserReblurPack_NRC_CS = shaderFactory.CreateShader("app/Denoiser.hlsl", "reblurPackData", &denoiseMacrosNRC, nvrhi::ShaderType::Compute);
+        m_denoiserReblurPack_NRC_CS = shaderFactory.CreateShader("app/Shaders/Denoiser.hlsl", "reblurPackData", &denoiseMacrosNRC, nvrhi::ShaderType::Compute);
         nvrhi::ComputePipelineDesc pipelineDesc;
         pipelineDesc.bindingLayouts = { layouts.global, layouts.denoiser };
         pipelineDesc.CS = m_denoiserReblurPack_NRC_CS;
@@ -56,7 +56,7 @@ void PathtracerPipelines::CreateCommon(nvrhi::IDevice* device, ShaderFactory& sh
 #endif // ENABLE_NRC
 
     {
-        m_denoiserResolveCS = shaderFactory.CreateShader("app/Denoiser.hlsl", "resolve", &denoiseMacros, nvrhi::ShaderType::Compute);
+        m_denoiserResolveCS = shaderFactory.CreateShader("app/Shaders/Denoiser.hlsl", "resolve", &denoiseMacros, nvrhi::ShaderType::Compute);
         nvrhi::ComputePipelineDesc pipelineDesc;
         pipelineDesc.bindingLayouts = { layouts.global, layouts.denoiser };
         pipelineDesc.CS = m_denoiserResolveCS;
@@ -64,10 +64,10 @@ void PathtracerPipelines::CreateCommon(nvrhi::IDevice* device, ShaderFactory& sh
     }
 #endif // ENABLE_NRD
 
-    m_tonemappingPS = shaderFactory.CreateShader("app/Tonemapping.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+    m_tonemappingPS = shaderFactory.CreateShader("app/Shaders/Tonemapping.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
 }
 
-bool PathtracerPipelines::CreateRayTracing(nvrhi::IDevice* device, ShaderFactory& shaderFactory, const BindingLayouts& layouts, bool enableNrd)
+bool Pipelines::CreateRayTracing(nvrhi::IDevice* device, ShaderFactory& shaderFactory, const BindingLayouts& layouts, bool enableNrd)
 {
     char const* enableDenoiserStr = enableNrd ? "1" : "0";
 
@@ -76,15 +76,15 @@ bool PathtracerPipelines::CreateRayTracing(nvrhi::IDevice* device, ShaderFactory
     macros[Type::DefaultPathTracing].push_back(ShaderMacro("ENABLE_NRD", enableDenoiserStr));
 
 #if ENABLE_NRC
-    macros[Type::NRC_Update].push_back(ShaderMacro("NRC_UPDATE", "1"));
-    macros[Type::NRC_Query].push_back(ShaderMacro("NRC_QUERY", "1"));
-    macros[Type::NRC_Query].push_back(ShaderMacro("ENABLE_NRD", enableDenoiserStr));
+    macros[Type::NrcUpdate].push_back(ShaderMacro("NRC_UPDATE", "1"));
+    macros[Type::NrcQuery].push_back(ShaderMacro("NRC_QUERY", "1"));
+    macros[Type::NrcQuery].push_back(ShaderMacro("ENABLE_NRD", enableDenoiserStr));
 #endif // ENABLE_NRC
 
 #if ENABLE_SHARC
-    macros[Type::Sharc_Update].push_back(ShaderMacro("SHARC_UPDATE", "1"));
-    macros[Type::Sharc_Query].push_back(ShaderMacro("SHARC_QUERY", "1"));
-    macros[Type::Sharc_Query].push_back(ShaderMacro("ENABLE_NRD", enableDenoiserStr));
+    macros[Type::SharcUpdate].push_back(ShaderMacro("SHARC_UPDATE", "1"));
+    macros[Type::SharcQuery].push_back(ShaderMacro("SHARC_QUERY", "1"));
+    macros[Type::SharcQuery].push_back(ShaderMacro("ENABLE_NRD", enableDenoiserStr));
 #endif // ENABLE_SHARC
 
     for (uint32_t i = 0; i < Type::Count; ++i)
@@ -96,50 +96,46 @@ bool PathtracerPipelines::CreateRayTracing(nvrhi::IDevice* device, ShaderFactory
     return true;
 }
 
-PathtracerPipelines::Permutation& PathtracerPipelines::GetPermutation(Type t)
+Pipelines::Permutation& Pipelines::GetPermutation(Type t)
 {
     return m_permutations[t];
 }
 
 #if ENABLE_SHARC
-nvrhi::ComputePipelineHandle PathtracerPipelines::GetSharcResolvePSO() const
+nvrhi::ComputePipelineHandle Pipelines::GetSharcResolvePSO() const
 {
     return m_sharcResolvePSO;
 }
 #endif // ENABLE_SHARC
 
 #if ENABLE_NRD
-nvrhi::ComputePipelineHandle PathtracerPipelines::GetDenoiserReblurPackPSO() const
+nvrhi::ComputePipelineHandle Pipelines::GetDenoiserReblurPackPSO() const
 {
     return m_denoiserReblurPackPSO;
 }
 
 #if ENABLE_NRC
-nvrhi::ComputePipelineHandle PathtracerPipelines::GetDenoiserReblurPack_NRC_PSO() const
+nvrhi::ComputePipelineHandle Pipelines::GetDenoiserReblurPack_NRC_PSO() const
 {
     return m_denoiserReblurPack_NRC_PSO;
 }
 #endif // ENABLE_NRC
 
-nvrhi::ComputePipelineHandle PathtracerPipelines::GetDenoiserResolvePSO() const
+nvrhi::ComputePipelineHandle Pipelines::GetDenoiserResolvePSO() const
 {
     return m_denoiserResolvePSO;
 }
 #endif // ENABLE_NRD
 
-nvrhi::ShaderHandle PathtracerPipelines::GetTonemappingPS() const
+nvrhi::ShaderHandle Pipelines::GetTonemappingPS() const
 {
     return m_tonemappingPS;
 }
 
-bool PathtracerPipelines::CreatePermutation(
-    nvrhi::IDevice* device,
-    ShaderFactory& shaderFactory,
-    PathtracerPipelines::Permutation& permutation,
-    std::vector<ShaderMacro>& macros,
-    const PathtracerPipelines::BindingLayouts& layouts)
+bool Pipelines::CreatePermutation(
+    nvrhi::IDevice* device, ShaderFactory& shaderFactory, Pipelines::Permutation& permutation, std::vector<ShaderMacro>& macros, const Pipelines::BindingLayouts& layouts)
 {
-    nvrhi::ShaderLibraryHandle shaderLibrary = shaderFactory.CreateShaderLibrary("app/Pathtracer.hlsl", &macros);
+    nvrhi::ShaderLibraryHandle shaderLibrary = shaderFactory.CreateShaderLibrary("app/Shaders/Pathtracer.hlsl", &macros);
     if (!shaderLibrary)
         return false;
 
@@ -151,7 +147,7 @@ bool PathtracerPipelines::CreatePermutation(
     };
 
     nvrhi::rt::PipelineDesc pipelineDesc;
-    for (int i = 0; i < DescriptorSetIDs::COUNT; ++i)
+    for (int i = 0; i < DescriptorSetIDs::Count; ++i)
         pipelineDesc.globalBindingLayouts.push_back(layouts.dummy[i]);
 
     pipelineDesc.globalBindingLayouts[DescriptorSetIDs::Globals] = layouts.global;

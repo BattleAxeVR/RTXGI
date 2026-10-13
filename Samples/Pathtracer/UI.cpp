@@ -17,7 +17,7 @@
 #include "Pathtracer.h"
 
 #if ENABLE_NRC
-#include "NrcUtils.h"
+#include "Nrc/NrcUtils.h"
 #include "NrcStructures.h"
 #endif
 
@@ -27,7 +27,7 @@ using namespace donut::math;
 
 // Conversion between sRGB to linear color space
 // Required here because of a known bug with ImGui and sRGB framebuffer
-float srgb_to_linear(float value)
+float ConvertSrgbToLinear(float value)
 {
     if (value <= 0.04045f)
         return value / 12.92f;
@@ -35,28 +35,25 @@ float srgb_to_linear(float value)
         return powf((value + 0.055f) / 1.055f, 2.4f);
 }
 
-void srgb_to_linear(ImVec4& color)
+void ConvertSrgbToLinear(ImVec4& color)
 {
-    color.x = srgb_to_linear(color.x);
-    color.y = srgb_to_linear(color.y);
-    color.z = srgb_to_linear(color.z);
+    color.x = ConvertSrgbToLinear(color.x);
+    color.y = ConvertSrgbToLinear(color.y);
+    color.z = ConvertSrgbToLinear(color.z);
 }
 
-PathtracerUI::PathtracerUI(DeviceManager* deviceManager, Pathtracer& app, UIData& ui) : ImGui_Renderer(deviceManager), m_app(app), m_ui(ui)
+UI::UI(DeviceManager* deviceManager, Pathtracer& app, UIData& ui) : ImGui_Renderer(deviceManager), m_app(app), m_ui(ui)
 {
     m_commandList = GetDevice()->createCommandList();
 
     std::shared_ptr<donut::vfs::NativeFileSystem> nativeFS = std::make_shared<donut::vfs::NativeFileSystem>();
-    m_defaultFont = this->CreateFontFromFile(*nativeFS, GetDirectoryWithExecutable().parent_path() / "Assets" / "Media/Fonts/NVIDIASans/NVIDIASans_Rg.ttf", 24.0f);
+    const std::filesystem::path mediaPath = donut::app::FindDirectory(*nativeFS, GetDirectoryWithExecutable(), "Assets/Media");
+    m_defaultFont = this->CreateFontFromFile(*nativeFS, mediaPath / "Fonts/NVIDIASans/NVIDIASans_Rg.ttf", 24.0f);
 
     ImGui::GetIO().IniFilename = nullptr;
 }
 
-PathtracerUI::~PathtracerUI()
-{
-}
-
-void PathtracerUI::buildUI(void)
+void UI::buildUI(void)
 {
     if (!m_ui.showUI)
         return;
@@ -282,10 +279,10 @@ void PathtracerUI::buildUI(void)
             updateAccum |= ImGui::Checkbox("Enable Material Demodulation", &m_ui.sharcEnableMaterialDemodulation);
             updateAccum |= ImGui::Checkbox("Enable Debug", &m_ui.sharcEnableDebug);
             updateAccum |= ImGui::SliderInt("Accumulation Frame Number", &m_ui.sharcAccumulationFrameNum, 1, 120);
-            updateAccum |= ImGui::SliderInt("Stale Frame Number", &m_ui.sharcStaleFrameFrameNum, 1, 120);
+            updateAccum |= ImGui::SliderInt("Stale Frame Number", &m_ui.sharcStaleFrameNum, 1, 120);
             updateAccum |= ImGui::SliderInt("Downscale Factor", &m_ui.sharcDownscaleFactor, 1, 10);
             updateAccum |= ImGui::SliderFloat("Scene Scale", &m_ui.sharcSceneScale, 5.0f, 100.0f);
-            updateAccum |= ImGui::SliderFloat("Rougness Threshold", &m_ui.sharcRoughnessThreshold, 0.0f, 1.0f);
+            updateAccum |= ImGui::SliderFloat("Roughness Threshold", &m_ui.sharcRoughnessThreshold, 0.0f, 1.0f);
         }
         ImGui::Indent(-12.0f);
     }

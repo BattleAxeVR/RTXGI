@@ -8,10 +8,10 @@
  * license agreement from NVIDIA CORPORATION is strictly prohibited.
  */
 
-#include "GlobalCb.h"
-#include "LightingCb.h"
+#include "../GlobalCb.h"
+#include "../LightingCb.h"
 
-#include "NRD/NRD.hlsli"
+#include "NRD.hlsli"
 
 #define BLOCK_SIZE 16
 

@@ -29,7 +29,7 @@ struct GlobalConstants
     int enableTransmission;
     int enableOcclusion;
 
-    int enableAbsorbtion;
+    int enableAbsorption;
     int enableTransparentShadows;
     int enableSoftShadows;
     int enableRussianRoulette;

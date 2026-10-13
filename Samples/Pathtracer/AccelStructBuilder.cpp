@@ -11,12 +11,12 @@
 #include <donut/engine/SceneGraph.h>
 #include <nvrhi/utils.h>
 
-#include "AccelStructManager.h"
+#include "AccelStructBuilder.h"
 #include "ScopedMarker.h"
 
 using namespace donut::engine;
 
-void AccelStructManager::Build(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, donut::engine::Scene& scene, bool enableTransmission)
+void AccelStructBuilder::Build(nvrhi::IDevice* device, nvrhi::ICommandList* commandList, donut::engine::Scene& scene, bool enableTransmission)
 {
     for (const auto& mesh : scene.GetSceneGraph()->GetMeshes())
     {
@@ -41,7 +41,7 @@ void AccelStructManager::Build(nvrhi::IDevice* device, nvrhi::ICommandList* comm
     m_rebuildAS = false;
 }
 
-void AccelStructManager::UpdateTLAS(nvrhi::ICommandList* commandList, donut::engine::Scene& scene, bool enableTransmission)
+void AccelStructBuilder::UpdateTLAS(nvrhi::ICommandList* commandList, donut::engine::Scene& scene, bool enableTransmission)
 {
     ScopedMarker scopedMarkerSkinnedBLAS(commandList, "Skinned BLAS Updates");
 
@@ -79,22 +79,22 @@ void AccelStructManager::UpdateTLAS(nvrhi::ICommandList* commandList, donut::eng
     commandList->buildTopLevelAccelStruct(m_topLevelAS, instances.data(), instances.size());
 }
 
-void AccelStructManager::RequestRebuild()
+void AccelStructBuilder::RequestRebuild()
 {
     m_rebuildAS = true;
 }
 
-bool AccelStructManager::NeedsRebuild() const
+bool AccelStructBuilder::NeedsRebuild() const
 {
     return m_rebuildAS;
 }
 
-nvrhi::rt::AccelStructHandle AccelStructManager::GetTLAS() const
+nvrhi::rt::AccelStructHandle AccelStructBuilder::GetTLAS() const
 {
     return m_topLevelAS;
 }
 
-void AccelStructManager::GetMeshBLASDesc(const donut::engine::MeshInfo& mesh, nvrhi::rt::AccelStructDesc& blasDesc, bool skipTransmissiveMaterials)
+void AccelStructBuilder::GetMeshBLASDesc(const donut::engine::MeshInfo& mesh, nvrhi::rt::AccelStructDesc& blasDesc, bool skipTransmissiveMaterials)
 {
     blasDesc.isTopLevel = false;
     blasDesc.debugName = mesh.name;

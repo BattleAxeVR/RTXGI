@@ -19,16 +19,15 @@
 #include <donut/engine/View.h>
 #include <donut/render/DLSS.h>
 
-#include "PathtracerUi.h"
-#include "PathtracerPipelines.h"
-#include "AccelStructManager.h"
-#include "PathtracerScene.h"
+#include "UI.h"
+#include "Pipelines.h"
+#include "AccelStructBuilder.h"
+#include "SampleScene.h"
 #include "RenderTargets.h"
 
 #if ENABLE_NRD
-#include "NrdIntegration.h"
+#include "Nrd/NrdIntegration.h"
 #endif // ENABLE_NRD
-
 
 class Pathtracer : public donut::app::ApplicationBase
 {
@@ -42,7 +41,7 @@ public:
     Pathtracer& operator=(Pathtracer&&) = delete;
     virtual ~Pathtracer();
 
-    bool Init(int argc, const char* const* argv);
+    bool Initialize(int argc, const char* const* argv);
 
     virtual bool LoadScene(std::shared_ptr<donut::vfs::IFileSystem> fs, const std::filesystem::path& sceneFileName) override;
     virtual void SceneUnloading() override;
@@ -87,7 +86,7 @@ public:
     std::string GetResolutionInfo();
 
 private:
-    PathtracerPipelines::BindingLayouts BuildBindingLayouts() const;
+    Pipelines::BindingLayouts BuildBindingLayouts() const;
 
     std::shared_ptr<donut::vfs::RootFileSystem> m_rootFileSystem;
     std::shared_ptr<donut::vfs::NativeFileSystem> m_nativeFileSystem;
@@ -111,7 +110,7 @@ private:
 
     donut::app::FirstPersonCamera m_camera;
     donut::engine::PlanarView m_view;
-    donut::engine::PlanarView m_viewPrevious;
+    donut::engine::PlanarView m_viewPrev;
 
     std::unique_ptr<donut::engine::BindingCache> m_bindingCache;
 
@@ -119,6 +118,9 @@ private:
     int m_frameIndex = 0;
 
     UIData& m_ui;
+
+    std::unique_ptr<PlanarViewConstants> m_updatePassView;
+    bool m_enableNrd = false;
 
     bool m_resetAccumulation;
     uint32_t m_accumulatedFrameCount;
@@ -128,9 +130,9 @@ private:
     float m_renderScale = 1.0f;
     std::unique_ptr<RenderTargets> m_renderTargets;
 
-    std::unique_ptr<AccelStructManager> m_accelStructManager;
-    std::unique_ptr<PathtracerScene> m_pathtracerScene;
-    std::unique_ptr<PathtracerPipelines> m_pathtracerPipelines;
+    std::unique_ptr<AccelStructBuilder> m_accelStructBuilder;
+    std::unique_ptr<SampleScene> m_pathtracerScene;
+    std::unique_ptr<Pipelines> m_pathtracerPipelines;
 
 #if ENABLE_NRC
     std::unique_ptr<NrcIntegration> m_nrc;
@@ -152,6 +154,10 @@ private:
 
     nvrhi::BindingLayoutHandle m_sharcBindingLayout;
     nvrhi::BindingSetHandle m_sharcBindingSet;
+
+    dm::float3 m_sharcCameraPosition = {};
+    dm::float3 m_sharcCameraPositionPrev = {};
+    bool m_sharcMaterialDemodulationApplied = true;
 #endif // ENABLE_SHARC
 
     nvrhi::BindingLayoutHandle m_denoiserBindingLayout;
@@ -167,6 +173,6 @@ private:
 #endif
 
     // Unified Binding
-    nvrhi::BindingLayoutHandle m_dummyLayouts[DescriptorSetIDs::COUNT];
-    nvrhi::BindingSetHandle m_dummyBindingSets[DescriptorSetIDs::COUNT];
+    nvrhi::BindingLayoutHandle m_dummyLayouts[DescriptorSetIDs::Count];
+    nvrhi::BindingSetHandle m_dummyBindingSets[DescriptorSetIDs::Count];
 };

@@ -16,12 +16,10 @@
 #include <donut/app/imgui_renderer.h>
 #include <donut/app/imgui_console.h>
 
-#define ENABLE_NRC   1
-#define ENABLE_SHARC 1
-#define ENABLE_NRD   1
+#include "Defines.h"
 
 #if ENABLE_NRC
-#include "NrcIntegration.h"
+#include "Nrc/NrcIntegration.h"
 #endif // ENABLE_NRC
 
 enum class PTDebugOutputType : uint32_t
@@ -107,7 +105,7 @@ struct UIData
     bool enableSky = true;
     bool enableEmissives = true;
     bool enableLighting = true;
-    bool enableAbsorbtion = true;
+    bool enableAbsorption = true;
     bool enableTransparentShadows = true;
     bool enableSoftShadows = true;
     float throughputThreshold = 0.01f;
@@ -156,7 +154,7 @@ struct UIData
     int sharcDownscaleFactor = 5;
     float sharcSceneScale = 50.0f;
     int sharcAccumulationFrameNum = 20;
-    int sharcStaleFrameFrameNum = 60;
+    int sharcStaleFrameNum = 60;
     float sharcRoughnessThreshold = 0.4f;
 #endif // ENABLE_SHARC
 
@@ -174,11 +172,10 @@ struct UIData
     const char* dlssModeStrings = "None\0Ultra Performance\0Performance\0Balanced\0Quality\0DLAA\0";
 };
 
-class PathtracerUI : public donut::app::ImGui_Renderer
+class UI : public donut::app::ImGui_Renderer
 {
 public:
-    PathtracerUI(donut::app::DeviceManager* deviceManager, class Pathtracer& app, UIData& ui);
-    virtual ~PathtracerUI();
+    UI(donut::app::DeviceManager* deviceManager, class Pathtracer& app, UIData& ui);
 
 protected:
     virtual void buildUI(void) override;

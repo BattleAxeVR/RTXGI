@@ -1,5 +1,19 @@
 # RTXGI SDK Change Log
 
+## 2.8.0
+
+### RTXGI
+- Update Donut framework (along with other external dependencies).
+- Introduce Windows on Arm64 support.
+
+### NRC
+- Update to v0.16.0. to introduce Windows on Arm64 support.
+
+### SHaRC
+- Update to v1.8.3.
+- Added a compact hash grid variant with 32-bit keys (**HASH_GRID_COMPACT**); the hash grid API now supports multiple variants via **HASH_GRID_PREFIX** / **HASH_GRID_CONST_PREFIX**.
+- Improved hash-grid overflow handling (addressed out-of-bounds and adjacent-level blending issues in resolve).
+
 ## 2.7.0
 
 ### RTXGI

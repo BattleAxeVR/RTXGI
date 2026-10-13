@@ -18,6 +18,11 @@ public:
     ScopedMarker(nvrhi::ICommandList* commandList, const char* name);
     ~ScopedMarker();
 
+    ScopedMarker(const ScopedMarker&) = delete;
+    ScopedMarker& operator=(const ScopedMarker&) = delete;
+    ScopedMarker(ScopedMarker&&) = delete;
+    ScopedMarker& operator=(ScopedMarker&&) = delete;
+
 private:
     nvrhi::ICommandList* m_commandList;
 };
