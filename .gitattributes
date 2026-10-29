@@ -1,0 +1,7 @@
+# Account for content in the samples
+Samples/** linguist-documentation=false
+Samples/** linguist-detectable=true
+
+*.hlsl  linguist-language=HLSL
+*.hlsli linguist-language=HLSL
+*.h     linguist-language=C++
